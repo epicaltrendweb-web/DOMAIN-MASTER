@@ -110,6 +110,12 @@ export default function Home() {
     skipped: number
   } | null>(null)
 
+  // Free .dev deployment state
+  const [deploying, setDeploying] = useState(false)
+  const [devDomains, setDevDomains] = useState<
+    Array<{ name: string; url: string; fullUrl: string; deployedAt: string; live?: boolean }>
+  >([])
+
   const [tracked, setTracked] = useState<Tracked[]>([])
   const [loadingTracked, setLoadingTracked] = useState(true)
 
@@ -148,6 +154,42 @@ export default function Home() {
   }, [loadProviders, loadTracked])
 
   // ---------- Search ----------
+  // ---------- Deploy free .dev Worker ----------
+  const deployDev = useCallback(async () => {
+    setDeploying(true)
+    try {
+      const r = await fetch('/api/workers/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto: true }),
+      })
+      const d = await r.json()
+      if (d.ok) {
+        const newDomain = {
+          name: d.workerName,
+          url: d.url,
+          fullUrl: d.fullUrl,
+          deployedAt: d.deployedAt,
+          live: false,
+        }
+        setDevDomains((prev) => [newDomain, ...prev].slice(0, 10))
+        toast.success(`.dev libre: ${d.url}`)
+        // Worker takes ~3-5s after deploy to be reachable at *.workers.dev
+        setTimeout(() => {
+          setDevDomains((prev) =>
+            prev.map((x) => (x.name === d.workerName ? { ...x, live: true } : x))
+          )
+        }, 4000)
+      } else {
+        toast.error(d.error || 'Error al deployar')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDeploying(false)
+    }
+  }, [])
+
   // ---------- Discover ----------
   const discover = useCallback(async () => {
     setDiscovering(true)
@@ -227,13 +269,13 @@ export default function Home() {
         })
         const d = await r.json()
         if (d.ok) {
-          toast.success(`Tracking "${name}"`)
+          toast.success(`Guardado "${name}" — miralo en "Mis dominios"`)
           await loadTracked()
         } else {
           if (d.error === 'Already tracked') {
-            toast.info(`"${name}" ya está en tracking`)
+            toast.info(`"${name}" ya está guardado`)
           } else {
-            toast.error(d.error || 'Error al trackear')
+            toast.error(d.error || 'Error al guardar')
           }
         }
       } finally {
@@ -388,7 +430,7 @@ export default function Home() {
                     <div className="pt-2">
                       {isTracked(result.name) ? (
                         <Badge variant="secondary" className="text-xs">
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Ya en tracking
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Guardado
                         </Badge>
                       ) : (
                         <Button
@@ -402,7 +444,7 @@ export default function Home() {
                           ) : (
                             <Tag className="h-4 w-4 mr-1" />
                           )}
-                          Trackear este dominio
+                          Guardar dominio
                         </Button>
                       )}
                     </div>
@@ -420,7 +462,7 @@ export default function Home() {
                 Descubrir
               </TabsTrigger>
               <TabsTrigger value="tracked">
-                Trackeados
+                Mis dominios
                 {tracked.length > 0 && (
                   <span className="ml-1.5 inline-flex items-center justify-center text-[10px] rounded-full bg-neutral-200 text-neutral-600 h-4 min-w-4 px-1">
                     {tracked.length}
@@ -458,7 +500,71 @@ export default function Home() {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                  {/* Free .dev deployer section */}
+                  <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div>
+                        <p className="text-sm font-bold text-emerald-900 flex items-center gap-1.5">
+                          <Sparkles className="h-4 w-4" />
+                          Conseguir .dev GRATIS ahora
+                        </p>
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          Deploya un Cloudflare Worker → te da <span className="font-mono">&lt;nombre&gt;.epicaltrendweb.workers.dev</span> en el .dev TLD REAL. Gratis, permanente.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={deployDev}
+                        disabled={deploying}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        {deploying ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-1" />
+                        )}
+                        {deploying ? 'Deployando…' : 'Conseguir .dev'}
+                      </Button>
+                    </div>
+
+                    {devDomains.length > 0 && (
+                      <ul className="space-y-1 mt-2">
+                        {devDomains.map((d, i) => (
+                          <li
+                            key={i}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded bg-white border border-emerald-200 text-sm"
+                          >
+                            {d.live ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                            ) : (
+                              <Loader2 className="h-4 w-4 animate-spin text-emerald-500 flex-shrink-0" />
+                            )}
+                            <a
+                              href={d.fullUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-emerald-700 hover:text-emerald-900 hover:underline flex-1 truncate"
+                            >
+                              {d.url}
+                            </a>
+                            <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300">
+                              .dev
+                            </Badge>
+                            <a
+                              href={d.fullUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                            >
+                              Abrir →
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
                   {discoverResult && (
                     <div className="space-y-3">
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -556,9 +662,9 @@ export default function Home() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-base">Dominios trackeados</CardTitle>
+                      <CardTitle className="text-base">Mis dominios guardados</CardTitle>
                       <CardDescription className="text-xs">
-                        Guardado en SQLite local. Re-chequeá cuando quieras.
+                        Dominios que marcaste para seguir. Re-chequeá disponibilidad cuando quieras.
                       </CardDescription>
                     </div>
                     <Button
@@ -579,8 +685,8 @@ export default function Home() {
                     </div>
                   ) : tracked.length === 0 ? (
                     <EmptyState
-                      title="Sin dominios trackeados"
-                      desc="Buscá uno arriba y hacé clic en 'Trackear'."
+                      title="Sin dominios guardados"
+                      desc="Buscá uno arriba y hacé clic en 'Guardar' para seguirlo."
                     />
                   ) : (
                     <div className="max-h-[28rem] overflow-y-auto -mx-2">
@@ -638,44 +744,6 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Investigation banner */}
-                  {investigation && (
-                    <Card className="border-emerald-200 bg-emerald-50">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2 text-emerald-900">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Investigación: ¿Antigravity da .dev gratis?
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-1 space-y-2">
-                        <p className="text-xs text-emerald-800">
-                          <span className="font-semibold">Consulta:</span> {investigation.query}
-                        </p>
-                        <p className="text-xs text-emerald-900 font-medium">
-                          <span className="font-semibold">Veredicto:</span> {investigation.verdict}
-                        </p>
-                        <p className="text-xs text-emerald-800">
-                          {investigation.likelyExplanation}
-                        </p>
-                        {investigation.autoDiscoverAvailable && (
-                          <div className="text-xs text-emerald-900 bg-emerald-100 rounded p-2 border border-emerald-200">
-                            <span className="font-semibold">✨ Auto-discovery:</span> {investigation.autoDiscoverAvailable}
-                          </div>
-                        )}
-                        <details className="text-xs">
-                          <summary className="cursor-pointer text-emerald-700 hover:text-emerald-900">
-                            Evidencia encontrada ({investigation.findings?.length || 0} items)
-                          </summary>
-                          <ul className="mt-1 space-y-1 list-disc list-inside text-emerald-700">
-                            {investigation.findings?.map((f, i) => (
-                              <li key={i}>{f}</li>
-                            ))}
-                          </ul>
-                        </details>
-                      </CardContent>
-                    </Card>
-                  )}
-
                   <div className="grid gap-3 sm:grid-cols-2">
                     {providers.map((p) => (
                       <Card key={p.slug} className="overflow-hidden">
