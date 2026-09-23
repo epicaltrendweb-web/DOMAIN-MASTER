@@ -58,3 +58,35 @@ server.log
 
 # Toolkit cache (decoded tokens)
 /.agent-toolkit/
+# Bare repo clones (don't commit user's other repos into DOMAIN-MASTER)
+/AGENT-TOOLKIT/
+/ANTIGAVITY-HACK-MEJORADO/
+/all-hands/
+/antigravity/
+/archived/
+/arnes/
+/dolarimetro/
+/ecosistema-respaldos/
+/estancia-digital/
+/free-code-web/
+/fw-sandbox/
+/librarchive/
+/librarchive-library/
+/librarchive-toolbox/
+/melon-azul/
+/nutriagenda/
+/openbiz-ganaderia/
+/openbiz-llm-os/
+/openbiz-llm-os-v2/
+/ramon/
+/ramon-old/
+/roboteando/
+/storyreel-studio/
+/toolbox-fromallrepos/
+/vitalis/
+/weft/
+/weftos/
+/weftos-agent-state/
+/weftos-archived-v1/
+/weftos-rust-native/
+/scan/
