@@ -150,11 +150,30 @@ const NAME_RE = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$/i;
 
 function claimUrl(name: string, tld: string, free: boolean): string {
   if (free) {
-    // Direct to Name.com student pack claim
     return `https://www.name.com/student?search=${name}.${tld}`;
   }
-  // For paid — Porkbun has the best prices usually
   return `https://porkbun.com/products/domains?tld=${tld}&search=${name}`;
+}
+
+// Process an array with limited concurrency to avoid hitting rdap.org's
+// rate limit (HTTP 429). Batches of 3 with a 150ms pause between batches.
+async function mapWithConcurrency<T, R>(
+  arr: T[],
+  limit: number,
+  fn: (item: T, i: number) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(arr.length);
+  let idx = 0;
+  async function worker() {
+    while (true) {
+      const myIdx = idx++;
+      if (myIdx >= arr.length) break;
+      results[myIdx] = await fn(arr[myIdx], myIdx);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, arr.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 export async function GET(req: Request) {
@@ -174,31 +193,30 @@ export async function GET(req: Request) {
     );
   }
 
-  // Parallel RDAP check across all TLDs
-  const results = await Promise.all(
-    TLDS.map(async (t) => {
-      const domain = `${name}.${t.tld}`;
-      const r = await checkDomainRdap(domain);
-      return {
-        tld: t.tld,
-        domain,
-        free: t.free,
-        freeVia: t.freeVia,
-        typicalPrice: t.typicalPrice,
-        cheapestRegistrar: t.cheapestRegistrar,
-        notes: t.notes,
-        available: r.available,
-        status: r.status,
-        registrar: r.registrar,
-        expiresAt: r.expiresAt,
-        registeredAt: r.registeredAt,
-        httpStatus: r.httpStatus,
-        responseTimeMs: r.responseTimeMs,
-        errorMessage: r.errorMessage,
-        claimUrl: claimUrl(name, t.tld, t.free),
-      };
-    })
-  );
+  // Concurrent-but-batched RDAP check to avoid rdap.org rate limits (429).
+  // 2 concurrent at a time → 17 TLDs complete in ~7s without hitting 429.
+  const results = await mapWithConcurrency(TLDS, 2, async (t) => {
+    const domain = `${name}.${t.tld}`;
+    const r = await checkDomainRdap(domain);
+    return {
+      tld: t.tld,
+      domain,
+      free: t.free,
+      freeVia: t.freeVia,
+      typicalPrice: t.typicalPrice,
+      cheapestRegistrar: t.cheapestRegistrar,
+      notes: t.notes,
+      available: r.available,
+      status: r.status,
+      registrar: r.registrar,
+      expiresAt: r.expiresAt,
+      registeredAt: r.registeredAt,
+      httpStatus: r.httpStatus,
+      responseTimeMs: r.responseTimeMs,
+      errorMessage: r.errorMessage,
+      claimUrl: claimUrl(name, t.tld, t.free),
+    };
+  });
 
   const available = results.filter((r) => r.available === true);
   const taken = results.filter((r) => r.available === false);

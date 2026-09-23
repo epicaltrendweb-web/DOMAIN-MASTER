@@ -116,7 +116,7 @@ export default function Home() {
     Array<{ name: string; url: string; fullUrl: string; deployedAt: string; live?: boolean }>
   >([])
 
-  // Custom-name multi-TLD register state
+  // Custom-name multi-TLD register state (for free subdomains)
   const [registerName, setRegisterName] = useState('')
   const [registering, setRegistering] = useState(false)
   const [registerResult, setRegisterResult] = useState<{
@@ -140,6 +140,40 @@ export default function Home() {
     takenCount: number
     unknownCount: number
     autoRegistered: { url: string; error?: string } | null
+    checkedAt: string
+  } | null>(null)
+
+  // Real-TLD search state (for FREE real TLDs like .app/.dev/.live via Student Pack)
+  const [realTldName, setRealTldName] = useState('')
+  const [searchingRealTlds, setSearchingRealTlds] = useState(false)
+  const [realTldResult, setRealTldResult] = useState<{
+    name: string
+    results: Array<{
+      tld: string
+      domain: string
+      free: boolean
+      freeVia?: string
+      typicalPrice?: string
+      cheapestRegistrar?: string
+      notes: string
+      available: boolean | null
+      status: string
+      registrar: string | null
+      expiresAt: string | null
+      registeredAt: string | null
+      httpStatus: number
+      responseTimeMs: number
+      errorMessage?: string
+      claimUrl: string
+    }>
+    availableCount: number
+    takenCount: number
+    unknownCount: number
+    freeAvailableCount: number
+    freeAvailable: Array<any>
+    note: string
+    studentPackUrl: string
+    studentPackNote: string
     checkedAt: string
   } | null>(null)
 
@@ -181,6 +215,41 @@ export default function Home() {
   }, [loadProviders, loadTracked])
 
   // ---------- Search ----------
+  // ---------- Search REAL TLDs (.app/.dev/.live/.studio via Student Pack) ----------
+  const searchRealTlds = useCallback(async () => {
+    const name = realTldName.trim().toLowerCase()
+    if (!name) {
+      toast.error('Ingresá un nombre')
+      return
+    }
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name)) {
+      toast.error('Nombre inválido: 1-63 chars, alfanumérico + guiones, empieza y termina con letra/número')
+      return
+    }
+    setSearchingRealTlds(true)
+    setRealTldResult(null)
+    try {
+      const r = await fetch(`/api/search-tlds?name=${encodeURIComponent(name)}`, { cache: 'no-store' })
+      const d = await r.json()
+      if (d.ok) {
+        setRealTldResult(d)
+        if (d.freeAvailableCount > 0) {
+          toast.success(`${d.freeAvailableCount} TLDs GRATIS disponibles con "${d.name}"`)
+        } else if (d.availableCount > 0) {
+          toast.info(`${d.availableCount} TLDs disponibles (pagos) con "${d.name}"`)
+        } else {
+          toast.info(`"${d.name}" tomado en todos los TLDs`)
+        }
+      } else {
+        toast.error(d.error || 'Error al buscar')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSearchingRealTlds(false)
+    }
+  }, [realTldName])
+
   // ---------- Register with custom name (multi-TLD) ----------
   const registerCustom = useCallback(async (autoRegister: boolean = false) => {
     const name = registerName.trim().toLowerCase()
@@ -564,6 +633,168 @@ export default function Home() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* ★ PREMIUM: Real-TLD search (free .app/.dev/.live via Student Pack) ★ */}
+                  <div className="relative overflow-hidden rounded-xl border-2 border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-emerald-50 p-4 sm:p-5 shadow-sm">
+                    {/* Decorative gradient orbs */}
+                    <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-emerald-200/40 blur-2xl" aria-hidden />
+                    <div className="absolute -bottom-12 -left-12 h-32 w-32 rounded-full bg-emerald-300/30 blur-2xl" aria-hidden />
+
+                    <div className="relative">
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div>
+                          <p className="text-base sm:text-lg font-bold text-emerald-900 flex items-center gap-2">
+                            <span className="text-xl">★</span>
+                            Conseguir dominio REAL con tu nombre
+                          </p>
+                          <p className="text-xs sm:text-sm text-emerald-700 mt-0.5">
+                            Como <span className="font-mono font-semibold text-emerald-800">einstein.app</span> — busca en <strong>17 terminaciones reales</strong> (.app, .dev, .live, .studio, .software, .games, .com, .io, etc.) y conseguí <strong>8 GRATIS</strong> vía Name.com + GitHub Student Pack.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mb-3">
+                        <Input
+                          value={realTldName}
+                          onChange={(e) => setRealTldName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') searchRealTlds() }}
+                          placeholder="ej: einstein  ·  mi-proyecto  ·  banana"
+                          className="h-11 font-mono text-base border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500"
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                        />
+                        <Button
+                          onClick={searchRealTlds}
+                          disabled={searchingRealTlds || !realTldName.trim()}
+                          className="h-11 px-6 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-sm"
+                        >
+                          {searchingRealTlds ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : (
+                            <Sparkles className="h-4 w-4 mr-1" />
+                          )}
+                          {searchingRealTlds ? 'Buscando…' : 'Buscar'}
+                        </Button>
+                      </div>
+
+                      {realTldResult && (
+                        <div className="space-y-3">
+                          {/* Top stats bar */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+                              {realTldResult.freeAvailableCount} GRATIS
+                            </Badge>
+                            <Badge variant="outline" className="bg-white">
+                              {realTldResult.availableCount} disponibles
+                            </Badge>
+                            <Badge variant="outline" className="bg-white">
+                              {realTldResult.takenCount} tomados
+                            </Badge>
+                            {realTldResult.unknownCount > 0 && (
+                              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                                {realTldResult.unknownCount} sin datos
+                              </Badge>
+                            )}
+                            <span className="ml-auto text-[10px] text-emerald-600 font-mono">
+                              name="{realTldResult.name}"
+                            </span>
+                          </div>
+
+                          {/* Free available — most prominent */}
+                          {realTldResult.freeAvailable.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-1.5">
+                                ⚡ Disponibles GRATIS vía Name.com + GitHub Student Pack
+                              </p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                                {realTldResult.freeAvailable.map((r: any, i: number) => (
+                                  <a
+                                    key={i}
+                                    href={r.claimUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white text-sm font-mono font-bold shadow-sm hover:shadow-md hover:from-emerald-600 hover:to-emerald-700 transition-all"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
+                                    <span className="truncate">{r.domain}</span>
+                                    <ExternalLink className="h-3 w-3 ml-auto opacity-70 group-hover:opacity-100" />
+                                  </a>
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-emerald-600 mt-1.5">
+                                Limit: 1 dominio gratis por año por cuenta de estudiante verificada. Click → te lleva directo a Name.com con el dominio pre-cargado.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Other TLDs — available paid + taken */}
+                          <details className="text-xs" open>
+                            <summary className="cursor-pointer font-semibold text-emerald-700 hover:text-emerald-900 py-1">
+                              Ver todos los {realTldResult.results.length} TLDs chequeados
+                            </summary>
+                            <ul className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                              {realTldResult.results.map((r: any, i: number) => {
+                                const available = r.available === true
+                                const taken = r.available === false
+                                return (
+                                  <li
+                                    key={i}
+                                    className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs border ${
+                                      available
+                                        ? 'bg-white border-emerald-200'
+                                        : taken
+                                          ? 'bg-neutral-50 border-neutral-200'
+                                          : 'bg-amber-50 border-amber-200'
+                                    }`}
+                                  >
+                                    {available ? (
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                                    ) : taken ? (
+                                      <XCircle className="h-3.5 w-3.5 text-neutral-400 flex-shrink-0" />
+                                    ) : (
+                                      <HelpCircle className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                                    )}
+                                    <span className={`font-mono flex-1 truncate ${available ? 'text-emerald-800 font-medium' : 'text-neutral-600'}`}>
+                                      {r.domain}
+                                    </span>
+                                    {r.free ? (
+                                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[9px] px-1.5 py-0 h-4">
+                                        FREE
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                                        {r.typicalPrice}
+                                      </Badge>
+                                    )}
+                                    {available && (
+                                      <a
+                                        href={r.claimUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-emerald-600 hover:text-emerald-800 font-medium"
+                                      >
+                                        →
+                                      </a>
+                                    )}
+                                    {taken && r.registrar && (
+                                      <span className="text-[9px] text-neutral-400 truncate max-w-[100px]" title={r.registrar}>
+                                        {r.registrar.split(' ')[0].slice(0, 12)}
+                                      </span>
+                                    )}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </details>
+
+                          <p className="text-[10px] text-emerald-600 italic">
+                            ★ ¿Cómo Antigravity registró einstein.app solo? — Antigravity (Google AI IDE) usó browser automation interactivo. No quedó código en tu GitHub porque fue vía web, no API. Acá te dejo el link directo a Name.com con el dominio pre-cargado para que lo registres vos mismo (1 click).
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Custom-name multi-TLD register section */}
                   <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 p-3">
                     <div className="mb-2">
