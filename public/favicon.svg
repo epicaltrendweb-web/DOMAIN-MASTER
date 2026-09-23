@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Background: emerald-600 rounded square -->
+  <rect width="32" height="32" rx="7" fill="#059669"/>
+  <!-- Globe: white circle with meridians (represents domains/worldwide) -->
+  <circle cx="13" cy="13" r="7.5" fill="none" stroke="#ffffff" stroke-width="1.6"/>
+  <!-- Equator + meridian lines -->
+  <ellipse cx="13" cy="13" rx="7.5" ry="2.8" fill="none" stroke="#ffffff" stroke-width="1.2"/>
+  <line x1="13" y1="5.5" x2="13" y2="20.5" stroke="#ffffff" stroke-width="1.2"/>
+  <line x1="5.5" y1="13" x2="20.5" y2="13" stroke="#ffffff" stroke-width="1.2"/>
+  <!-- Magnifier handle (bottom-right, suggesting "search") -->
+  <line x1="19" y1="19" x2="26" y2="26" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Magnifier lens (white circle overlay) -->
+  <circle cx="19" cy="19" r="3.2" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+  <!-- Green checkmark inside magnifier lens (domain available!) -->
+  <path d="M17.4 19.2 L18.6 20.4 L20.8 18" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
