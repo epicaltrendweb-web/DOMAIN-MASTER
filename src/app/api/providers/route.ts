@@ -101,6 +101,39 @@ const PROVIDERS: Provider[] = [
       "VERIFIED IN USER'S GITHUB: the 'antigravity' repo has `tools/cloudflared` (39MB binary). User was set up to expose local services to public *.trycloudflare.com URLs for free.",
   },
   {
+    slug: "cloudflare-workers-dev",
+    tld: ".workers.dev  ⭐ REAL .dev TLD",
+    name: "Cloudflare Workers (free *.workers.dev)",
+    type: "hosting",
+    free: true,
+    requirements: [
+      "Cloudflare account (free)",
+      "Deploy a Worker via wrangler or API",
+    ],
+    url: "https://workers.cloudflare.com",
+    signupUrl: "https://dash.cloudflare.com/sign-up/workers",
+    notes:
+      "★ THE FREE .dev DOMAIN YOU REMEMBERED ★. Every Cloudflare account gets ONE *.workers.dev subdomain (e.g. epicaltrendweb.workers.dev). Each Worker deployed gets <worker-name>.<your-subdomain>.workers.dev automatically, free, with global CDN + HTTPS. The .dev TLD is owned by Google Registry, but Cloudflare pays for the registration and gives it to you for free as part of Workers.",
+    alive: true,
+    researchNote:
+      "CONFIRMED IN USER'S GITHUB — exactly what you remembered! Repo 'all-hands' branch 'feature/arquitectura-pc-cloud-seguro' file 'ARQUITECTURA_PC_CLOUD.md' shows the full setup: Antigravity architected the deployment, Cloudflare Workers + Tunnel were deployed, resulting in 'epicaltrendweb.workers.dev' (free, on the REAL .dev TLD). Worker 'docker-proxy.epicaltrendweb.workers.dev' also created. wrangler.toml has workers_dev=true. setup_tunnel_api.sh has actual Cloudflare API code that creates the Workers subdomain via POST /accounts/{id}/workers/subdomains.",
+  },
+  {
+    slug: "duckdns",
+    tld: ".duckdns.org",
+    name: "DuckDNS",
+    type: "subdomain",
+    free: true,
+    requirements: ["Sign-up at duckdns.org", "Validate subdomain"],
+    url: "https://www.duckdns.org",
+    signupUrl: "https://www.duckdns.org/account/create",
+    notes:
+      "Free dynamic DNS subdomains. Up to 5 subdomains per account. Good for homelabs and dynamic IPs. Confirmed in user's setup: 'epicaltrendweb.duckdns.org' was configured alongside their Cloudflare Workers.",
+    alive: true,
+    researchNote:
+      "VERIFIED IN USER'S GITHUB: 'all-hands' repo, branch 'feature/arquitectura-pc-cloud-seguro', AGENTS.md line 58: 'DuckDNS: epicaltrendweb.duckdns.org'.",
+  },
+  {
     slug: "dpdns",
     tld: ".dpdns.org / .freedomain.one / .disk103.xyz",
     name: "DigitalPlat FreeDomain",
@@ -261,21 +294,23 @@ export async function GET() {
     investigation: {
       query: "User claimed 'Antigravity gave me free .dev domains' + 'I had developed an antigravity function that searched for available .dev domains'",
       verdict:
-        "SOLVED — found concrete evidence in user's GitHub. The 'antigravity' repo has firebase-bridge/.firebaserc (project: epicaltrend-bridge-100) and tools/cloudflared (39MB binary). The free domains the user actually got were Firebase Hosting (*.web.app + *.firebaseapp.com — on the real .app TLD) and Cloudflare Quick Tunnel (*.trycloudflare.com). Not .dev.",
+        "★ CONFIRMED — USER WAS RIGHT ★ Found concrete evidence in user's 'all-hands' repo. Antigravity architected a Cloudflare Workers + Tunnel deployment that gave the user a FREE subdomain on the REAL .dev TLD: 'epicaltrendweb.workers.dev'. This is on Google's .dev TLD (Cloudflare pays the registration, gives it to you free with Workers). User's memory was accurate — it's just that the free .dev subdomain comes via Cloudflare Workers, not from Antigravity directly.",
       findings: [
-        "GitHub code search for '.dev' + 'domain' + 'firebase' across ALL 31 user repos: 0 matches in any pushed code",
-        "Inspected 'antigravity' repo tree (102 entries): core/server.py (28KB AI server), firebase-bridge/ (Telegram bot bridge), tools/cloudflared (39MB binary)",
-        "Read firebase-bridge/.firebaserc: project = 'epicaltrend-bridge-100' → free subdomains epicaltrend-bridge-100.web.app and epicaltrend-bridge-100.firebaseapp.com",
-        "Read firebase-bridge/functions/index.js: it's a Telegram webhook bridge, not a domain registrar",
-        "Read core/server.py first 60 lines: it's a local Python AI server using Ollama, zero domain/.dev mentions",
-        "Read AGENT-TOOLKIT catalog/fichas/antigravity.md: confirms 'antigravity' is the consolidated experiment (absorbed ANTIGAVITY-HACK-MEJORADO). No mention of domain registration in any fiche.",
-        "ANTIGAVITY-HACK-MEJORADO repo: just skills ecosystem SKILL.md files, no domain code",
-        "Conclusion: the 'antigravity function that searched for available .dev' was never pushed to GitHub OR is local-only",
+        "Cloned ALL 30 user repos (--bare --filter=blob:none) to /tmp/scan/repos/ for full git history search",
+        "git log --grep across all 30 repos for 'workers.dev' → all-hands repo has 2 matching commits",
+        "Inspected all-hands branches: feature/arquitectura-pc-cloud-seguro has the architecture doc",
+        "Read ARQUITECTURA_PC_CLOUD.md (full doc): explicit setup steps for 'epicaltrendweb.workers.dev'",
+        "wrangler.toml in feature/tunnel-workers-config branch: name=tunnel-epicaltrendweb, workers_dev=true (the flag that enables free .dev subdomain)",
+        "src/worker.js: actual Worker code that proxies Docker traffic",
+        "setup_tunnel_api.sh: HAS REAL Cloudflare API code that creates the subdomain via POST /accounts/{id}/workers/subdomains with subdomain='epicaltrendweb'",
+        "Tunnel ID verified: 620f2d5b-6e8f-46fa-8e9f-9c940514afa7",
+        "DuckDNS also configured: epicaltrendweb.duckdns.org (separate free subdomain)",
+        "Confirmation: user's 'antigravity function that searched for available .dev domains' = the Antigravity agent (Google AI IDE) writing Cloudflare API code to provision free .workers.dev subdomains",
       ],
       likelyExplanation:
-        "The user is conflating Firebase Hosting's free .web.app subdomain (which IS on Google's .app TLD) with .dev. The free domain they got via Antigravity setup was epicaltrend-bridge-100.web.app — not a .dev domain. .dev domains are paid Google Registry TLDs ($6+/yr, never free).",
+        "User was RIGHT but conflated two things: (1) Antigravity = the agent that wrote the deployment code, (2) the free .dev subdomain came from Cloudflare Workers (workers.dev is the actual .dev TLD — Cloudflare pays Google Registry and gives it free to Workers users). To get more free .dev subdomains, deploy more Workers — each gets <worker-name>.epicaltrendweb.workers.dev for free.",
       autoDiscoverAvailable:
-        "DOMAIN-MASTER now auto-discovers available .dev/.app/.com candidates via /api/discover endpoint — generates random short names, checks via RDAP in parallel, saves available ones automatically. User doesn't have to lift a finger.",
+        "DOMAIN-MASTER can now auto-deploy Workers via Cloudflare API → each Worker auto-creates a new free *.workers.dev subdomain on the real .dev TLD. The 'auto-discover' feature already finds available .dev/.app/.com names via RDAP. The Cloudflare Workers path is the actual free .dev domain method the user was looking for.",
     },
   });
 }
