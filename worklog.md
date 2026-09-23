@@ -94,3 +94,68 @@ Stage Summary:
 - APIs `/api/upload` y `/api/extract` operativas.
 - `/home/z/my-project/upload/` listo para recibir los archivos del usuario (probablemente `agent-toolkit-bootloader-v1.1.zip` + `.sha256`).
 - Tarea completada en primer plano sin subagentes.
+
+---
+Task ID: 4
+Agent: Z.ai Code (main, sin delegar)
+Task: Inspeccionar el toolkit subido + crear repo DOMAIN-MASTER en GitHub + investigar dominios gratis + armar la base.
+
+Work Log:
+- Inspección del toolkit `agent-toolkit-bootloader-v1.1.zip`:
+  - SHA256 del zip coincide con el `.sha256` provisto: `7eecdb2a86f80d067dadc464afc79475959af26be9be1c57f19b0513d79cb8e7` ✓
+  - Verifiqué integridad de cada archivo contra `SHA256SUM`: los 6 archivos OK ✓
+  - Contenido: bootloader para deployar repos privados del usuario `epicaltrendweb-web`. Contiene:
+    - `config/.auth` (token GitHub XOR+base64 codificado)
+    - `codec.sh` (decoder XOR+base64)
+    - `bootstrap.sh` (clona AGENT-TOOLKIT y exec run.sh)
+    - `AGENT-PROMPT.md`, `VERSION`, `.gitignore`, `SHA256SUM`
+  - Decodifiqué el token con `codec.sh decode` → formato `ghp_...` (40 chars)
+  - Verifiqué contra `https://api.github.com/user` → HTTP 200, login: `epicaltrendweb-web`
+- Investigación de dominios gratis (3 búsquedas web en paralelo vía z-ai CLI):
+  - TLDs gratis reales: `.eu.org` (no expira, voluntarios desde 1996), `.js.org` (para OSS en GitHub Pages), subdominios de DigitalPlat FreeDomain, Dynu, FreeDNS (afraid.org), GitHub Student Pack vía Name.com (`.live`, `.studio`, `.games`, `.software`, etc.)
+  - Freenom (`.tk`, `.ml`, `.ga`, `.cf`, `.gq`) MUERTO desde 2023 (excluido explícitamente del catálogo).
+  - `.dev`, `.app`, `.page`, `.zip` son de Google Registry PAGOS — los incluí en el catálogo como "PAGA" porque el usuario los mencionó, pero aclaré que no son gratis.
+- Verifiqué que RDAP funciona desde el sandbox:
+  - `https://rdap.org/domain/google.com` con `-L` (follow redirects) → 200 con JSON completo de registro (registrar, expires, nameservers, status EPP)
+  - Dominio random disponible → 404 ✓
+  - DETALLE: Cloudflare bloquea requests sin `User-Agent` (devuelve 403). Tuve que agregar el header en `src/lib/rdap.ts`.
+- Creación del repo en GitHub:
+  - `POST /user/repos` con el token decodificado → repo `epicaltrendweb-web/DOMAIN-MASTER` creado (public, Node gitignore template) ✓
+  - URL: https://github.com/epicaltrendweb-web/DOMAIN-MASTER
+- Base del proyecto (todo hecho en el repo local existente en /home/z/my-project, no en subdirectorio):
+  - `prisma/schema.prisma`: modelos `TrackedDomain` (id, name, tld, status, registrar, registeredAt, expiresAt, lastChecked, notes) + `CheckLog` (audit de cada check: status, available, registrar, errorMessage, responseTime)
+  - `bun run db:push` aplicó el schema al SQLite local
+  - `src/lib/rdap.ts`: helper `checkDomainRdap(domain)` que llama a rdap.org, parsea registrar/fechas/nameservers/status, distingue 200 (taken) / 404 (available) / 400-422-501 (unknown, sin RDAP server para esa TLD)
+  - `src/app/api/domains/check/route.ts` — GET ?name=X → RDAP lookup
+  - `src/app/api/providers/route.ts` — catálogo estático de 10 providers (6 gratis + 4 pagos)
+  - `src/app/api/tracked/route.ts` — GET (list), POST (create+autocheck), DELETE (?id=)
+  - `src/app/api/tracked/check/route.ts` — POST ?id=... (re-checkea y guarda en CheckLog)
+  - `src/app/page.tsx` — UI: header con logo DOMAIN-MASTER, hero search box, card de resultado con badges (Disponible/Ya registrado/TLD sin RDAP/Error), tabs (Trackeados / Dominios gratis), tarjetas de providers con badges GRATIS/PAGA, links a Registrarse + Docs, footer sticky
+  - `README.md` — documenta propósito, features, providers, estructura, API, getting started, license MIT
+- Seguridad:
+  - Agregué `/upload/` y `/.agent-toolkit/` al `.gitignore` (el upload contiene el toolkit con el token)
+  - `.env` ya estaba en `.gitignore` pero igualmente estaba tracked desde antes — lo removí con `git rm --cached .env` (contenido: solo `DATABASE_URL=file:.../custom.db`, no sensible)
+  - Verifiqué: worklog.md NO contiene el token completo, solo prefijos `ghp_VdSvigaw...`
+- Commit + push:
+  - `feat: DOMAIN-MASTER — domain availability search + free domain discovery` (10 files, 1205 insertions, 307 deletions)
+  - `chore: stop tracking .env` 
+  - `fix(rdap): add User-Agent header (Cloudflare blocks UA-less requests)`
+  - Push forzado con `--force-with-lease` (el repo tenía un "Initial commit" placeholder de GitHub con solo .gitignore, mi historial era más completo)
+- Verificación final con Agent Browser:
+  - Página carga con heading "DOMAIN-MASTER" + search box + tabs (Trackeados / Dominios gratis) ✓
+  - API: `GET /` 200, `GET /api/providers` 200 (10 providers: 6 free + 4 paid), `GET /api/tracked` 200 (Prisma query exitosa), `GET /api/domains/check?name=test.dev` 200 ✓
+  - Busqué `myproject-xyz-abc-123.dev` → aparece botón "Trackear este dominio" (correcto, resultado OK)
+  - Probé RDAP vía API: `google.com` → taken + registrar MarkMonitor Inc. + expira 2028-09-14 ✓
+  - `super-random-name-xyzabc456def.com` → available + httpStatus 404 ✓
+  - `github.dev` → taken + MarkMonitor + expira 2027-01-16 ✓
+- Lint: 0 errores.
+
+Stage Summary:
+- Repo creado en GitHub: https://github.com/epicaltrendweb-web/DOMAIN-MASTER (public)
+- 3 commits pushed: feat (base completa), chore (untrack .env), fix (UA header para RDAP)
+- App corriendo en http://localhost:3000/:
+  - Búsqueda de disponibilidad por RDAP (sin auth, gratis, moderno reemplazo de WHOIS)
+  - Catálogo de 10 providers investigados (6 free: .eu.org, .js.org, DigitalPlat, Dynu, FreeDNS, GitHub Student Pack; 4 paid aclarados: .dev/.app/.page/.xyz)
+  - Trackeo de dominios con SQLite local + audit log de cada check
+- Toolkit `agent-toolkit-bootloader-v1.1.zip` queda en `/home/z/my-project/upload/` (no se commiteó — en .gitignore). El usuario puede usarlo después para deployar otros repos.
+- Tarea completada en primer plano, sin subagentes.
