@@ -44,13 +44,14 @@ type Provider = {
   slug: string
   tld: string
   name: string
-  type: 'subdomain' | 'tld' | 'student'
+  type: 'subdomain' | 'tld' | 'student' | 'platform' | 'hosting'
   free: boolean
   requirements: string[]
   url: string
   signupUrl?: string
   notes: string
   alive: boolean
+  researchNote?: string
 }
 
 type Tracked = {
@@ -88,6 +89,12 @@ export default function Home() {
   const [result, setResult] = useState<CheckResult | null>(null)
 
   const [providers, setProviders] = useState<Provider[]>([])
+  const [investigation, setInvestigation] = useState<{
+    query: string
+    verdict: string
+    likelyExplanation: string
+    sources: string[]
+  } | null>(null)
   const [loadingProviders, setLoadingProviders] = useState(true)
 
   const [tracked, setTracked] = useState<Tracked[]>([])
@@ -102,7 +109,10 @@ export default function Home() {
     try {
       const r = await fetch('/api/providers')
       const d = await r.json()
-      if (d.ok) setProviders(d.providers)
+      if (d.ok) {
+        setProviders(d.providers)
+        if (d.investigation) setInvestigation(d.investigation)
+      }
     } finally {
       setLoadingProviders(false)
     }
@@ -458,68 +468,118 @@ export default function Home() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {providers.map((p) => (
-                    <Card key={p.slug} className="overflow-hidden">
+                <div className="space-y-4">
+                  {/* Investigation banner */}
+                  {investigation && (
+                    <Card className="border-amber-200 bg-amber-50">
                       <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <CardTitle className="text-sm font-bold truncate flex items-center gap-1.5">
-                              {p.name}
-                              {p.free ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1.5 py-0 h-4">
-                                  GRATIS
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                                  PAGA
-                                </Badge>
-                              )}
-                            </CardTitle>
-                            <CardDescription className="font-mono text-[11px] text-neutral-500 mt-0.5">
-                              {p.tld}
-                            </CardDescription>
-                          </div>
-                          <Badge variant="outline" className="text-[10px] capitalize flex-shrink-0">
-                            {p.type}
-                          </Badge>
-                        </div>
+                        <CardTitle className="text-sm flex items-center gap-2 text-amber-900">
+                          <HelpCircle className="h-4 w-4" />
+                          Investigación: ¿Antigravity da .dev gratis?
+                        </CardTitle>
                       </CardHeader>
-                      <CardContent className="pt-2 space-y-2">
-                        <p className="text-xs text-neutral-600 leading-snug">{p.notes}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {p.requirements.map((r) => (
-                            <span
-                              key={r}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600"
-                            >
-                              {r}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          {p.signupUrl && (
-                            <a
-                              href={p.signupUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center text-xs font-medium text-emerald-600 hover:text-emerald-700"
-                            >
-                              <ExternalLink className="h-3 w-3 mr-0.5" /> Registrarse
-                            </a>
-                          )}
-                          <a
-                            href={p.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center text-xs text-neutral-500 hover:text-neutral-700"
-                          >
-                            <BookOpen className="h-3 w-3 mr-0.5" /> Docs
-                          </a>
-                        </div>
+                      <CardContent className="pt-1 space-y-2">
+                        <p className="text-xs text-amber-800">
+                          <span className="font-semibold">Consulta:</span> {investigation.query}
+                        </p>
+                        <p className="text-xs text-amber-900 font-medium">
+                          <span className="font-semibold">Veredicto:</span> {investigation.verdict}
+                        </p>
+                        <p className="text-xs text-amber-800">
+                          {investigation.likelyExplanation}
+                        </p>
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-amber-700 hover:text-amber-900">
+                            Fuentes ({investigation.sources.length})
+                          </summary>
+                          <ul className="mt-1 space-y-0.5 list-disc list-inside text-amber-700">
+                            {investigation.sources.map((s, i) => (
+                              <li key={i} className="break-all">
+                                <a
+                                  href={s}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:underline"
+                                >
+                                  {s}
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
                       </CardContent>
                     </Card>
-                  ))}
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {providers.map((p) => (
+                      <Card key={p.slug} className="overflow-hidden">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <CardTitle className="text-sm font-bold truncate flex items-center gap-1.5">
+                                {p.name}
+                                {p.free ? (
+                                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1.5 py-0 h-4">
+                                    GRATIS
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                    PAGA
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                              <CardDescription className="font-mono text-[11px] text-neutral-500 mt-0.5">
+                                {p.tld}
+                              </CardDescription>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] capitalize flex-shrink-0">
+                              {p.type}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-2 space-y-2">
+                          <p className="text-xs text-neutral-600 leading-snug">{p.notes}</p>
+                          {p.researchNote && (
+                            <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 leading-snug">
+                              <span className="font-semibold">Investigación: </span>
+                              {p.researchNote}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap gap-1">
+                            {p.requirements.map((r) => (
+                              <span
+                                key={r}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600"
+                              >
+                                {r}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-2 pt-1">
+                            {p.signupUrl && (
+                              <a
+                                href={p.signupUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-0.5" /> Registrarse
+                              </a>
+                            )}
+                            <a
+                              href={p.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-xs text-neutral-500 hover:text-neutral-700"
+                            >
+                              <BookOpen className="h-3 w-3 mr-0.5" /> Docs
+                            </a>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
               )}
             </TabsContent>
