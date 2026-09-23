@@ -15,6 +15,7 @@ import {
   Server,
   Tag,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -93,9 +94,21 @@ export default function Home() {
     query: string
     verdict: string
     likelyExplanation: string
-    sources: string[]
+    findings: string[]
+    autoDiscoverAvailable?: string
   } | null>(null)
   const [loadingProviders, setLoadingProviders] = useState(true)
+
+  // Discover state
+  const [discovering, setDiscovering] = useState(false)
+  const [discoverResult, setDiscoverResult] = useState<{
+    available: Array<{ name: string; responseTimeMs: number; saved?: boolean }>
+    taken: number
+    unknown: number
+    checkedAt: string
+    candidatesChecked: number
+    skipped: number
+  } | null>(null)
 
   const [tracked, setTracked] = useState<Tracked[]>([])
   const [loadingTracked, setLoadingTracked] = useState(true)
@@ -135,6 +148,38 @@ export default function Home() {
   }, [loadProviders, loadTracked])
 
   // ---------- Search ----------
+  // ---------- Discover ----------
+  const discover = useCallback(async () => {
+    setDiscovering(true)
+    setDiscoverResult(null)
+    try {
+      const r = await fetch('/api/discover?count=12', { cache: 'no-store' })
+      const d = await r.json()
+      if (d.ok) {
+        setDiscoverResult({
+          available: d.available,
+          taken: d.taken?.length || 0,
+          unknown: d.unknown?.length || 0,
+          checkedAt: d.checkedAt,
+          candidatesChecked: d.candidatesChecked,
+          skipped: d.skipped,
+        })
+        if (d.available?.length > 0) {
+          toast.success(`${d.available.length} dominios libres encontrados!`)
+        } else {
+          toast.info('Ninguno libre en esta tanda. Probá de nuevo.')
+        }
+        await loadTracked()
+      } else {
+        toast.error(d.error || 'Error al descubrir')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDiscovering(false)
+    }
+  }, [loadTracked])
+
   const onSearch = useCallback(async () => {
     const name = query.trim().toLowerCase()
     if (!name) return
@@ -368,8 +413,12 @@ export default function Home() {
           )}
 
           {/* Tabs: Tracked + Providers */}
-          <Tabs defaultValue="tracked" className="w-full">
+          <Tabs defaultValue="discover" className="w-full">
             <TabsList className="mb-4">
+              <TabsTrigger value="discover">
+                <Search className="h-3 w-3 mr-1" />
+                Descubrir
+              </TabsTrigger>
               <TabsTrigger value="tracked">
                 Trackeados
                 {tracked.length > 0 && (
@@ -380,6 +429,126 @@ export default function Home() {
               </TabsTrigger>
               <TabsTrigger value="providers">Dominios gratis</TabsTrigger>
             </TabsList>
+
+            {/* Discover tab */}
+            <TabsContent value="discover">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-emerald-500" />
+                        Auto-descubrimiento de dominios
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-1">
+                        Genera nombres al azar (.dev, .app, .com), chequea vía RDAP en paralelo y guarda los libres. Vos no hacés nada.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={discover}
+                      disabled={discovering}
+                    >
+                      {discovering ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 mr-1" />
+                      )}
+                      {discovering ? 'Buscando…' : 'Buscar libres'}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {discoverResult && (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="outline" className="text-emerald-700 border-emerald-300 bg-emerald-50">
+                          {discoverResult.available.length} libres
+                        </Badge>
+                        <Badge variant="outline" className="text-neutral-600">
+                          {discoverResult.taken} tomados
+                        </Badge>
+                        {discoverResult.unknown > 0 && (
+                          <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                            {discoverResult.unknown} sin RDAP
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-neutral-500 font-mono">
+                          {discoverResult.candidatesChecked} candidatos · {discoverResult.skipped} ya trackeados
+                        </Badge>
+                      </div>
+
+                      {discoverResult.available.length === 0 ? (
+                        <div className="text-center py-8 text-sm text-neutral-500">
+                          <p>Ningún dominio libre en esta tanda.</p>
+                          <p className="text-xs mt-1">Hacé clic en "Buscar libres" de nuevo para otra ronda.</p>
+                        </div>
+                      ) : (
+                        <ul className="max-h-96 overflow-y-auto -mx-2 space-y-1">
+                          {discoverResult.available.map((d, i) => {
+                            const tld = d.name.split('.').pop() || ''
+                            const registrar = tld === 'dev'
+                              ? 'Porkbun'
+                              : tld === 'app'
+                                ? 'Cloudflare'
+                                : 'Namecheap'
+                            const registrarUrl =
+                              tld === 'dev'
+                                ? `https://porkbun.com/products/domains?tld=${tld}&search=${d.name.split('.')[0]}`
+                                : tld === 'app'
+                                  ? `https://www.namecheap.com/domains/registration/results/?domain=${d.name}`
+                                  : `https://www.namecheap.com/domains/registration/results/?domain=${d.name}`
+                            return (
+                              <li
+                                key={i}
+                                className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-emerald-50 border border-transparent hover:border-emerald-200"
+                              >
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                <span className="font-mono text-sm text-neutral-900 flex-1 truncate">
+                                  {d.name}
+                                </span>
+                                <span className="text-[10px] text-neutral-400">
+                                  {d.responseTimeMs}ms
+                                </span>
+                                {d.saved && (
+                                  <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    guardado
+                                  </Badge>
+                                )}
+                                <a
+                                  href={registrarUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                                >
+                                  Registrar →
+                                </a>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+
+                      <div className="text-[11px] text-neutral-400 pt-1">
+                        Última ronda: {new Date(discoverResult.checkedAt).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+
+                  {!discoverResult && !discovering && (
+                    <div className="text-center py-10">
+                      <Sparkles className="h-8 w-8 mx-auto text-emerald-300 mb-2" />
+                      <p className="text-sm font-medium text-neutral-700">
+                        Hacé clic en "Buscar libres"
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Cada randa chequea 12 nombres al azar en paralelo y guarda los disponibles.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
             {/* Tracked tab */}
             <TabsContent value="tracked">
@@ -471,39 +640,35 @@ export default function Home() {
                 <div className="space-y-4">
                   {/* Investigation banner */}
                   {investigation && (
-                    <Card className="border-amber-200 bg-amber-50">
+                    <Card className="border-emerald-200 bg-emerald-50">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-2 text-amber-900">
-                          <HelpCircle className="h-4 w-4" />
+                        <CardTitle className="text-sm flex items-center gap-2 text-emerald-900">
+                          <CheckCircle2 className="h-4 w-4" />
                           Investigación: ¿Antigravity da .dev gratis?
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="pt-1 space-y-2">
-                        <p className="text-xs text-amber-800">
+                        <p className="text-xs text-emerald-800">
                           <span className="font-semibold">Consulta:</span> {investigation.query}
                         </p>
-                        <p className="text-xs text-amber-900 font-medium">
+                        <p className="text-xs text-emerald-900 font-medium">
                           <span className="font-semibold">Veredicto:</span> {investigation.verdict}
                         </p>
-                        <p className="text-xs text-amber-800">
+                        <p className="text-xs text-emerald-800">
                           {investigation.likelyExplanation}
                         </p>
+                        {investigation.autoDiscoverAvailable && (
+                          <div className="text-xs text-emerald-900 bg-emerald-100 rounded p-2 border border-emerald-200">
+                            <span className="font-semibold">✨ Auto-discovery:</span> {investigation.autoDiscoverAvailable}
+                          </div>
+                        )}
                         <details className="text-xs">
-                          <summary className="cursor-pointer text-amber-700 hover:text-amber-900">
-                            Fuentes ({investigation.sources.length})
+                          <summary className="cursor-pointer text-emerald-700 hover:text-emerald-900">
+                            Evidencia encontrada ({investigation.findings?.length || 0} items)
                           </summary>
-                          <ul className="mt-1 space-y-0.5 list-disc list-inside text-amber-700">
-                            {investigation.sources.map((s, i) => (
-                              <li key={i} className="break-all">
-                                <a
-                                  href={s}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="hover:underline"
-                                >
-                                  {s}
-                                </a>
-                              </li>
+                          <ul className="mt-1 space-y-1 list-disc list-inside text-emerald-700">
+                            {investigation.findings?.map((f, i) => (
+                              <li key={i}>{f}</li>
                             ))}
                           </ul>
                         </details>
