@@ -159,3 +159,58 @@ Stage Summary:
   - Trackeo de dominios con SQLite local + audit log de cada check
 - Toolkit `agent-toolkit-bootloader-v1.1.zip` queda en `/home/z/my-project/upload/` (no se commiteó — en .gitignore). El usuario puede usarlo después para deployar otros repos.
 - Tarea completada en primer plano, sin subagentes.
+
+---
+Task ID: 5
+Agent: Z.ai Code (main, sin delegar)
+Task: Investigar el reclamo del usuario "Antigravity me daba .dev gratis" y actualizar el catálogo de DOMAIN-MASTER.
+
+Work Log:
+- User reported: "yo los obtenía gratis con antigravity, no se como hacia si cuenta developer o que pero antigravity los conseguia gratis"
+- Búsquedas web (8 en paralelo vía z-ai CLI):
+  - "Antigravity free .dev domain registration Google developer program"
+  - "get free .dev domain 2024 2025 without paying promo offer"
+  - "antigravity app/domain service platform"
+  - "antigravity.google signup bonus free .dev domain benefits included"
+  - "Google Developer Program benefits list free .dev domain voucher credit"
+  - "free .dev domain first year promo Namecheap Cloudflare Porkbun"
+  - "GitHub Pages free domain dev subdomain github.io free hosting"
+  - "Antigravity beta free .dev domain voucher launch promotion 2025"
+- Fetching directo de páginas reales con `page_reader` (function name correcto: `page_reader`, NO `read_url`):
+  - `https://antigravity.google` → landing page. Confirma: "Google Antigravity is our agentic development platform" — IDE, CLI, SDK. CERO menciones de "domain", ".dev", "register", "tld", "voucher".
+  - `https://antigravity.google/pricing` → Individual plan ($0/mo) incluye: Gemini 3.x Flash/Pro, Claude Sonnet/Opus 4.6, gpt-oss-120b, unlimited tab completions, command requests, basic weekly rate limits. Google AI Pro/Ultra: rate limits + AI credit pool. Organization plan: Google Cloud integration. **CERO menciones de dominios**.
+  - `https://www.datastudios.org/posts/google-antigravity-december-2025-offers` → devolvió 404 (el snippet era de un índice de buscador, no una página real).
+- Veredicto de la investigación:
+  - **NO confirmado**. Antigravity NO da dominios .dev gratis.
+  - Es la IDE agentic de Google (lanzado 18 Nov 2025), no un registrar.
+  - Es muy probable que el usuario haya confundido Antigravity con:
+    (a) GitHub Pages (`<user>.github.io`) — subdominio gratis que sirve contenido de desarrollador (parece URL "dev")
+    (b) Una promo vieja de Google Cloud Platform que dio un voucher de dominio único (hace años)
+    (c) GitHub Student Developer Pack vía Name.com — da TLDs reales gratis pero NO incluye .dev
+- Actualización del catálogo en `src/app/api/providers/route.ts`:
+  - Subí de 10 → 13 providers
+  - Nuevos:
+    - `github-pages` (.github.io, hosting, free) — con researchNote explicando la confusión probable
+    - `google-antigravity` (platform, free, no domain) — con researchNote verificada
+    - `google-developer-program` (platform, free) — con researchNote sobre benefits reales
+  - `dev-google` actualizado: agregué researchNote con findings de Antigravity, y en `requirements` puse los precios reales (cheapest $6.44/yr, first-year promos $1-3 en Porkbun/Cloudflare/Namecheap)
+  - Nuevo campo `researchNote?: string` en el tipo Provider
+  - Nuevo bloque `investigation` en la respuesta del API: `{ query, verdict, likelyExplanation, sources[] }`
+- Actualización de UI en `src/app/page.tsx`:
+  - Tipo Provider extendido: agregué `'platform' | 'hosting'` al union type
+  - Nuevo state `investigation` para guardar el bloque de investigación del API
+  - Banner amber "Investigación: ¿Antigravity da .dev gratis?" arriba del grid de providers con veredicto + explicación + sources colapsables
+  - Cada card de provider ahora muestra un cuadro amber "Investigación: ..." cuando tiene `researchNote`
+- Verificación con Agent Browser:
+  - `bun run lint` → 0 errores ✓
+  - `GET /api/providers` → 200 con 13 providers (9 free + 4 paid + 2 platforms), `investigation` block presente ✓
+  - Click en tab "Dominios gratis" → banner "Investigación" visible ✓
+  - `document.body.innerText.includes('Antigravity')` → true ✓
+  - `document.body.innerText.includes('Veredicto')` → true ✓
+- Commit + push: `feat(providers): add Antigravity investigation + GitHub Pages + Google Developer Program` (2 files, +203/-66). SHA `bace7a5` pushed a `origin/main`.
+
+Stage Summary:
+- Investigación completa y honesta: NO pude confirmar que Antigravity diera .dev gratis. Fui directo a las fuentes (antigravity.google + /pricing) y documenté lo que SÍ ofrecen (AI models, no dominios).
+- Catálogo actualizado con 3 nuevos entries + research notes visibles en la UI.
+- Repo en GitHub actualizado: https://github.com/epicaltrendweb-web/DOMAIN-MASTER/commit/bace7a5
+- Tarea en primer plano, sin subagentes.
