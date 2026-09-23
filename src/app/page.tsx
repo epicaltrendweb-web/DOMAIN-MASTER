@@ -1,10 +1,18 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { UploadCloud, FileArchive, CheckCircle2, Loader2, Folder, File as FileIcon } from 'lucide-react'
+import {
+  UploadCloud,
+  CheckCircle2,
+  Loader2,
+  Folder,
+  File as FileIcon,
+  AlertCircle,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-type Stage = 'idle' | 'uploading' | 'uploaded' | 'extracting' | 'done' | 'error'
+type FileStage = 'uploading' | 'extracting' | 'done' | 'error'
 
 type Entry = {
   name: string
@@ -14,27 +22,18 @@ type Entry = {
   ext: string
 }
 
-type UploadResult = {
-  ok: boolean
-  name?: string
-  originalName?: string
-  size?: number
-  type?: string
-  path?: string
-  savedAt?: string
-  error?: string
-}
-
-type ExtractResult = {
-  ok: boolean
-  name?: string
-  zipPath?: string
-  targetDir?: string
-  totalFiles?: number
-  totalSize?: number
+type Item = {
+  id: string
+  originalName: string
+  size: number
+  type: string
+  stage: FileStage
+  errorMsg?: string
+  uploadPath?: string
   entries?: Entry[]
-  truncated?: boolean
-  error?: string
+  totalFiles?: number
+  targetDir?: string
+  isZip: boolean
 }
 
 function formatBytes(bytes: number): string {
@@ -46,92 +45,116 @@ function formatBytes(bytes: number): string {
 }
 
 export default function Home() {
-  const [stage, setStage] = useState<Stage>('idle')
+  const [items, setItems] = useState<Item[]>([])
   const [dragOver, setDragOver] = useState(false)
-  const [uploadRes, setUploadRes] = useState<UploadResult | null>(null)
-  const [extractRes, setExtractRes] = useState<ExtractResult | null>(null)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [dragCount, setDragCount] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleFile = useCallback(async (file: File) => {
-    setStage('uploading')
-    setErrorMsg('')
-    setUploadRes(null)
-    setExtractRes(null)
-
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const r = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data: UploadResult = await r.json()
-      if (!data.ok) {
-        throw new Error(data.error || 'Error al subir')
-      }
-      setUploadRes(data)
-      setStage('uploaded')
-
-      // Si es zip, extraer automáticamente
-      const isZip = file.name.toLowerCase().endsWith('.zip')
-      if (isZip) {
-        setStage('extracting')
-        const er = await fetch('/api/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: data.name }),
-        })
-        const edata: ExtractResult = await er.json()
-        if (!edata.ok) {
-          throw new Error(edata.error || 'Error al extraer')
-        }
-        setExtractRes(edata)
-        setStage('done')
-      } else {
-        setStage('done')
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setErrorMsg(msg)
-      setStage('error')
-    }
+  const updateItem = useCallback((id: string, patch: Partial<Item>) => {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
   }, [])
+
+  const processFile = useCallback(
+    async (file: File) => {
+      const id = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const isZip = file.name.toLowerCase().endsWith('.zip')
+      const item: Item = {
+        id,
+        originalName: file.name,
+        size: file.size,
+        type: file.type || 'application/octet-stream',
+        stage: 'uploading',
+        isZip,
+      }
+      setItems((prev) => [item, ...prev])
+
+      try {
+        // 1) Subir
+        const fd = new FormData()
+        fd.append('file', file)
+        const r = await fetch('/api/upload', { method: 'POST', body: fd })
+        const data = await r.json()
+        if (!data.ok) throw new Error(data.error || 'Error al subir')
+        updateItem(id, { uploadPath: data.path })
+
+        // 2) Si es zip, extraer
+        if (isZip) {
+          updateItem(id, { stage: 'extracting' })
+          const er = await fetch('/api/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: data.name }),
+          })
+          const edata = await er.json()
+          if (!edata.ok) throw new Error(edata.error || 'Error al extraer')
+          updateItem(id, {
+            stage: 'done',
+            entries: edata.entries,
+            totalFiles: edata.totalFiles,
+            targetDir: edata.targetDir,
+          })
+        } else {
+          updateItem(id, { stage: 'done' })
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        updateItem(id, { stage: 'error', errorMsg: msg })
+      }
+    },
+    [updateItem]
+  )
+
+  const handleFiles = useCallback(
+    (files: FileList | File[]) => {
+      const arr = Array.from(files)
+      if (arr.length === 0) return
+      // Procesar en paralelo
+      arr.forEach(processFile)
+    },
+    [processFile]
+  )
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault()
       setDragOver(false)
-      const file = e.dataTransfer.files?.[0]
-      if (file) handleFile(file)
+      setDragCount(0)
+      const files = e.dataTransfer.files
+      if (files && files.length) handleFiles(files)
     },
-    [handleFile]
+    [handleFiles]
   )
 
   const onPick = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (file) handleFile(file)
+      const files = e.target.files
+      if (files && files.length) handleFiles(files)
+      if (inputRef.current) inputRef.current.value = ''
     },
-    [handleFile]
+    [handleFiles]
   )
 
-  const reset = useCallback(() => {
-    setStage('idle')
-    setUploadRes(null)
-    setExtractRes(null)
-    setErrorMsg('')
-    if (inputRef.current) inputRef.current.value = ''
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((it) => it.id !== id))
   }, [])
+
+  const clearAll = useCallback(() => setItems([]), [])
+
+  const inProgress = items.filter(
+    (it) => it.stage === 'uploading' || it.stage === 'extracting'
+  ).length
 
   return (
     <main className="min-h-screen flex flex-col bg-neutral-50">
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-2xl">
+      <div className="flex-1 px-4 py-6 sm:py-8">
+        <div className="w-full max-w-3xl mx-auto">
           {/* Título */}
           <div className="mb-6 text-center">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
-              Subir archivo
+              Subir archivos
             </h1>
             <p className="mt-1 text-sm text-neutral-500">
-              Arrastrá el archivo o hacé clic para elegirlo. Se detecta y procesa solo.
+              Arrastrá varios a la vez o hacé clic para elegirlos. Se suben y procesan solos.
             </p>
           </div>
 
@@ -140,176 +163,201 @@ export default function Home() {
             onDragOver={(e) => {
               e.preventDefault()
               setDragOver(true)
+              setDragCount(e.dataTransfer.items?.length || 0)
             }}
-            onDragLeave={() => setDragOver(false)}
+            onDragLeave={() => {
+              setDragOver(false)
+              setDragCount(0)
+            }}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
             className={`cursor-pointer rounded-2xl border-2 border-dashed bg-white p-8 sm:p-12 text-center transition ${
               dragOver
                 ? 'border-emerald-500 bg-emerald-50'
                 : 'border-neutral-300 hover:border-neutral-400'
-            } ${stage === 'uploading' || stage === 'extracting' ? 'pointer-events-none opacity-70' : ''}`}
+            } ${inProgress > 0 ? 'pointer-events-none opacity-70' : ''}`}
           >
             <input
               ref={inputRef}
               type="file"
+              multiple
               className="hidden"
               onChange={onPick}
             />
-
             <div className="flex flex-col items-center gap-3">
-              {stage === 'idle' && (
-                <>
-                  <UploadCloud className="h-10 w-10 text-neutral-400" />
-                  <div>
-                    <p className="text-sm font-medium text-neutral-700">
-                      Soltá el archivo aquí
-                    </p>
-                    <p className="text-xs text-neutral-400">
-                      o hacé clic para elegir
-                    </p>
-                  </div>
-                </>
-              )}
-
-              {(stage === 'uploading' || stage === 'extracting') && (
-                <>
-                  <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
-                  <p className="text-sm font-medium text-neutral-700">
-                    {stage === 'uploading' ? 'Subiendo…' : 'Extrayendo ZIP…'}
-                  </p>
-                </>
-              )}
-
-              {stage === 'uploaded' && (
-                <>
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                  <p className="text-sm font-medium text-neutral-700">
-                    Subido ✓
-                  </p>
-                </>
-              )}
-
-              {stage === 'done' && (
-                <>
-                  <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                  <p className="text-sm font-medium text-neutral-700">
-                    {extractRes ? 'Extraído ✓' : 'Subido ✓'}
-                  </p>
-                </>
-              )}
-
-              {stage === 'error' && (
-                <>
-                  <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center">
-                    <span className="text-red-600 text-xl">!</span>
-                  </div>
-                  <p className="text-sm font-medium text-red-700">
-                    Error al procesar
-                  </p>
-                </>
-              )}
+              <UploadCloud className="h-10 w-10 text-neutral-400" />
+              <div>
+                <p className="text-sm font-medium text-neutral-700">
+                  {dragOver && dragCount > 0
+                    ? `Soltá ${dragCount} archivo${dragCount > 1 ? 's' : ''}`
+                    : 'Soltá los archivos aquí'}
+                </p>
+                <p className="text-xs text-neutral-400">
+                  o hacé clic para elegir (múltiples permitidos)
+                </p>
+              </div>
             </div>
           </div>
 
-          {/* Detalle del upload */}
-          {uploadRes && (
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-              <div className="flex items-start gap-3">
-                <FileArchive className="h-5 w-5 mt-0.5 text-neutral-500 flex-shrink-0" />
-                <div className="flex-1 min-w-0 text-sm">
-                  <div className="font-medium text-neutral-900 truncate">
-                    {uploadRes.originalName}
+          {/* Lista de items */}
+          {items.length > 0 && (
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
+                  {items.length} archivo{items.length > 1 ? 's' : ''}
+                  {inProgress > 0 && ` · ${inProgress} procesando`}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAll}
+                  className="h-7 text-xs text-neutral-500 hover:text-neutral-700"
+                >
+                  Limpiar lista
+                </Button>
+              </div>
+
+              {items.map((it) => (
+                <div
+                  key={it.id}
+                  className="rounded-xl border border-neutral-200 bg-white overflow-hidden"
+                >
+                  {/* Header del item */}
+                  <div className="flex items-start gap-3 p-4">
+                    <StatusIcon stage={it.stage} isZip={it.isZip} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-neutral-900 text-sm truncate">
+                          {it.originalName}
+                        </span>
+                        {it.isZip && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase">
+                            zip
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-neutral-500 mt-0.5">
+                        {formatBytes(it.size)} · {it.type}
+                        {it.totalFiles != null && ` · ${it.totalFiles} archivos extraídos`}
+                      </div>
+                      <div className="text-[11px] text-neutral-400 mt-0.5">
+                        {stageLabel(it)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeItem(it.id)}
+                      className="text-neutral-300 hover:text-red-500 p-1 -m-1"
+                      title="Quitar de la lista"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
-                  <div className="text-xs text-neutral-500 mt-0.5">
-                    {uploadRes.size != null && formatBytes(uploadRes.size)}
-                    {uploadRes.type ? ` · ${uploadRes.type}` : ''}
-                  </div>
-                  {uploadRes.path && (
-                    <div className="text-[11px] text-neutral-400 mt-1 font-mono break-all">
-                      {uploadRes.path}
+
+                  {/* Detalle del upload */}
+                  {it.uploadPath && (
+                    <div className="px-4 pb-2">
+                      <div className="text-[11px] text-neutral-400 font-mono break-all bg-neutral-50 rounded px-2 py-1.5">
+                        {it.uploadPath}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {it.stage === 'error' && it.errorMsg && (
+                    <div className="px-4 pb-3">
+                      <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 rounded p-2">
+                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <span>{it.errorMsg}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contenido extraído */}
+                  {it.stage === 'done' && it.entries && it.entries.length > 0 && (
+                    <div className="border-t border-neutral-100 bg-neutral-50/50">
+                      <div className="px-4 py-2 text-[11px] text-neutral-500 font-medium uppercase tracking-wide">
+                        Contenido extraído {it.targetDir && `· ${it.targetDir.split('/').pop()}`}
+                      </div>
+                      <div className="max-h-60 overflow-y-auto px-2 pb-2">
+                        <ul className="space-y-0.5">
+                          {it.entries.map((e, i) => (
+                            <li
+                              key={i}
+                              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white text-[13px]"
+                            >
+                              {e.isDir ? (
+                                <Folder className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+                              ) : (
+                                <FileIcon className="h-3.5 w-3.5 flex-shrink-0 text-neutral-400" />
+                              )}
+                              <span
+                                className={`flex-1 truncate ${
+                                  e.isDir
+                                    ? 'text-neutral-700 font-medium'
+                                    : 'text-neutral-600'
+                                }`}
+                                style={{
+                                  paddingLeft:
+                                    e.name.split('/').length > 1
+                                      ? `${(e.name.split('/').length - 1) * 12}px`
+                                      : 0,
+                                }}
+                              >
+                                {e.name.split('/').pop() || e.name}
+                              </span>
+                              {!e.isDir && (
+                                <span className="text-[10px] text-neutral-400 flex-shrink-0">
+                                  {formatBytes(e.size)}
+                                </span>
+                              )}
+                              {e.ext && !e.isDir && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-500 uppercase flex-shrink-0">
+                                  {e.ext}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
+              ))}
             </div>
           )}
-
-          {/* Detalle de extracción */}
-          {extractRes?.ok && extractRes.entries && (
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-white p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-medium text-neutral-900">
-                  Contenido extraído
-                </div>
-                <div className="text-xs text-neutral-500">
-                  {extractRes.totalFiles} archivos
-                  {extractRes.truncated ? ' (mostrando 200)' : ''}
-                </div>
-              </div>
-              <div className="max-h-80 overflow-y-auto -mx-1">
-                <ul className="space-y-0.5 text-sm">
-                  {extractRes.entries.map((e, i) => (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 px-2 py-1 rounded hover:bg-neutral-50"
-                    >
-                      {e.isDir ? (
-                        <Folder className="h-4 w-4 flex-shrink-0 text-amber-500" />
-                      ) : (
-                        <FileIcon className="h-4 w-4 flex-shrink-0 text-neutral-400" />
-                      )}
-                      <span
-                        className={`flex-1 truncate ${
-                          e.isDir
-                            ? 'text-neutral-700 font-medium'
-                            : 'text-neutral-600'
-                        }`}
-                        style={{ paddingLeft: e.name.split('/').length > 1 ? `${(e.name.split('/').length - 1) * 12}px` : 0 }}
-                      >
-                        {e.name.split('/').pop() || e.name}
-                      </span>
-                      {!e.isDir && (
-                        <span className="text-[11px] text-neutral-400 flex-shrink-0">
-                          {formatBytes(e.size)}
-                        </span>
-                      )}
-                      {e.ext && !e.isDir && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500 uppercase flex-shrink-0">
-                          {e.ext}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="mt-3 text-[11px] text-neutral-400 font-mono break-all">
-                {extractRes.targetDir}
-              </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {errorMsg && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Acciones */}
-          <div className="mt-6 flex items-center justify-center gap-3">
-            {stage === 'done' || stage === 'error' ? (
-              <Button variant="outline" onClick={reset}>
-                Subir otro
-              </Button>
-            ) : null}
-          </div>
         </div>
       </div>
 
       <footer className="mt-auto border-t border-neutral-200 bg-white py-4 px-4 text-center text-xs text-neutral-400">
-        Subida simple de archivos · los archivos se guardan en /home/z/my-project/upload/
+        Subida múltiple · los archivos se guardan en /home/z/my-project/upload/ · los ZIPs se extraen automáticamente
       </footer>
     </main>
   )
+}
+
+function StatusIcon({ stage, isZip }: { stage: FileStage; isZip: boolean }) {
+  if (stage === 'uploading' || stage === 'extracting') {
+    return <Loader2 className="h-5 w-5 mt-0.5 flex-shrink-0 animate-spin text-emerald-500" />
+  }
+  if (stage === 'error') {
+    return (
+      <div className="h-5 w-5 mt-0.5 flex-shrink-0 rounded-full bg-red-100 flex items-center justify-center">
+        <AlertCircle className="h-3.5 w-3.5 text-red-600" />
+      </div>
+    )
+  }
+  return <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-500" />
+}
+
+function stageLabel(it: Item): string {
+  switch (it.stage) {
+    case 'uploading':
+      return 'Subiendo…'
+    case 'extracting':
+      return 'Extrayendo ZIP…'
+    case 'error':
+      return 'Falló'
+    case 'done':
+      return it.isZip ? 'Subido y extraído ✓' : 'Subido ✓'
+  }
 }
