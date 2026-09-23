@@ -116,6 +116,33 @@ export default function Home() {
     Array<{ name: string; url: string; fullUrl: string; deployedAt: string; live?: boolean }>
   >([])
 
+  // Custom-name multi-TLD register state
+  const [registerName, setRegisterName] = useState('')
+  const [registering, setRegistering] = useState(false)
+  const [registerResult, setRegisterResult] = useState<{
+    name: string
+    results: Array<{
+      slug: string
+      pattern: string
+      tld: string
+      provider: string
+      realTld: string
+      autoRegistrable: boolean
+      requiresToken?: string
+      notes: string
+      claimUrl: string | null
+      available: boolean | null
+      httpStatus: number
+      latencyMs: number
+      error?: string
+    }>
+    availableCount: number
+    takenCount: number
+    unknownCount: number
+    autoRegistered: { url: string; error?: string } | null
+    checkedAt: string
+  } | null>(null)
+
   const [tracked, setTracked] = useState<Tracked[]>([])
   const [loadingTracked, setLoadingTracked] = useState(true)
 
@@ -154,6 +181,42 @@ export default function Home() {
   }, [loadProviders, loadTracked])
 
   // ---------- Search ----------
+  // ---------- Register with custom name (multi-TLD) ----------
+  const registerCustom = useCallback(async (autoRegister: boolean = false) => {
+    const name = registerName.trim().toLowerCase()
+    if (!name) {
+      toast.error('Ingresá un nombre')
+      return
+    }
+    if (!/^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/.test(name)) {
+      toast.error('Nombre inválido: 3-32 chars, alfanumérico + guiones, empieza y termina con letra/número')
+      return
+    }
+    setRegistering(true)
+    setRegisterResult(null)
+    try {
+      const url = `/api/register?name=${encodeURIComponent(name)}${autoRegister ? '&register=1' : ''}`
+      const r = await fetch(url, { cache: 'no-store' })
+      const d = await r.json()
+      if (d.ok) {
+        setRegisterResult(d)
+        if (d.autoRegistered?.url) {
+          toast.success(`.dev registrado: ${d.autoRegistered.url}`)
+        } else if (d.availableCount > 0) {
+          toast.success(`${d.availableCount} libres con "${d.name}"`)
+        } else {
+          toast.info(`"${d.name}" tomado en todos lados`)
+        }
+      } else {
+        toast.error(d.error || 'Error al registrar')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRegistering(false)
+    }
+  }, [registerName])
+
   // ---------- Deploy free .dev Worker ----------
   const deployDev = useCallback(async () => {
     setDeploying(true)
@@ -501,7 +564,141 @@ export default function Home() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Free .dev deployer section */}
+                  {/* Custom-name multi-TLD register section */}
+                  <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 p-3">
+                    <div className="mb-2">
+                      <p className="text-sm font-bold text-emerald-900 flex items-center gap-1.5">
+                        <Sparkles className="h-4 w-4" />
+                        Conseguir dominio con TU nombre
+                      </p>
+                      <p className="text-[11px] text-emerald-700 mt-0.5">
+                        Escribí el nombre que quieras (ej: <span className="font-mono">banana</span>). Chequea en paralelo 8 terminaciones gratis (.dev, .app, .sh, .com, .me) y registra el .dev automáticamente.
+                      </p>
+                    </div>
+                    <div className="flex gap-2 mb-2">
+                      <Input
+                        value={registerName}
+                        onChange={(e) => setRegisterName(e.target.value.toLowerCase())}
+                        onKeyDown={(e) => { if (e.key === 'Enter') registerCustom(true) }}
+                        placeholder="ej: mi-proyecto"
+                        className="h-9 font-mono text-sm"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => registerCustom(true)}
+                        disabled={registering || !registerName.trim()}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+                      >
+                        {registering ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-1" />
+                        )}
+                        {registering ? 'Buscando…' : 'Conseguir'}
+                      </Button>
+                    </div>
+
+                    {registerResult && (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-300">
+                            {registerResult.availableCount} libres
+                          </Badge>
+                          <Badge variant="outline" className="bg-neutral-100 text-neutral-700">
+                            {registerResult.takenCount} tomados
+                          </Badge>
+                          {registerResult.unknownCount > 0 && (
+                            <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
+                              {registerResult.unknownCount} sin datos
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="font-mono text-neutral-500">
+                            name="{registerResult.name}"
+                          </Badge>
+                        </div>
+
+                        {registerResult.autoRegistered?.url && (
+                          <div className="rounded-md bg-emerald-100 border border-emerald-300 p-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                              <span className="font-semibold text-emerald-900">.dev auto-registrado:</span>
+                              <a
+                                href={registerResult.autoRegistered.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-emerald-700 hover:text-emerald-900 hover:underline flex-1 truncate"
+                              >
+                                {registerResult.autoRegistered.url.replace('https://', '')}
+                              </a>
+                              <a
+                                href={registerResult.autoRegistered.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-emerald-600 hover:text-emerald-700"
+                              >
+                                Abrir →
+                              </a>
+                            </div>
+                          </div>
+                        )}
+
+                        <ul className="space-y-1 max-h-72 overflow-y-auto">
+                          {registerResult.results.map((r, i) => {
+                            const url = `https://${r.pattern.split(' ')[0]}`
+                            return (
+                              <li
+                                key={i}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm border ${
+                                  r.available
+                                    ? 'bg-emerald-50 border-emerald-200'
+                                    : r.available === false
+                                      ? 'bg-neutral-50 border-neutral-200'
+                                      : 'bg-amber-50 border-amber-200'
+                                }`}
+                              >
+                                {r.available === true ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                ) : r.available === false ? (
+                                  <XCircle className="h-4 w-4 text-neutral-400 flex-shrink-0" />
+                                ) : (
+                                  <HelpCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                )}
+                                <span className={`font-mono text-sm flex-1 truncate ${r.available ? 'text-emerald-800 font-medium' : 'text-neutral-600'}`}>
+                                  {r.pattern.includes('{name}') ? r.pattern.replace('{name}', registerResult.name) : r.pattern}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] uppercase">
+                                  .{r.realTld}
+                                </Badge>
+                                {r.available && r.claimUrl && (
+                                  <a
+                                    href={r.claimUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                                  >
+                                    Registrar →
+                                  </a>
+                                )}
+                                {r.available && r.autoRegistrable && (
+                                  <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300">
+                                    auto
+                                  </Badge>
+                                )}
+                                {!r.available && r.error && (
+                                  <span className="text-[10px] text-amber-600">{r.error.slice(0, 40)}</span>
+                                )}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Free .dev deployer section (auto random name) */}
                   <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div>
