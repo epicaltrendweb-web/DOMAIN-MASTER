@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// DOMAIN-MASTER — Prisma schema
+// Domain availability tracking + free domain discovery
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +10,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// A domain the user is tracking (saved search result).
+model TrackedDomain {
+  id           String   @id @default(cuid())
+  name         String   // full domain name, e.g. "myproject.dev"
+  tld          String   // extension without dot, e.g. "dev"
+  status       String   @default("unknown") // "available" | "taken" | "unknown" | "error"
+  registrar    String?
+  registeredAt DateTime?
+  expiresAt    DateTime?
+  lastChecked  DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  checks       CheckLog[]
+
+  @@unique([name])
+  @@index([tld])
+  @@index([status])
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// History of availability checks for a tracked domain.
+model CheckLog {
+  id          String   @id @default(cuid())
+  domainId    String
+  status      String   // "available" | "taken" | "unknown" | "error"
+  available   Boolean?
+  registrar    String?
+  errorMessage String?
+  responseTime Int?    // milliseconds
+  checkedAt   DateTime @default(now())
+
+  domain      TrackedDomain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+
+  @@index([domainId])
+  @@index([checkedAt])
 }

@@ -1,363 +1,620 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
-  UploadCloud,
+  Search,
+  Globe,
   CheckCircle2,
+  XCircle,
+  HelpCircle,
   Loader2,
-  Folder,
-  File as FileIcon,
-  AlertCircle,
   Trash2,
+  RefreshCw,
+  ExternalLink,
+  BookOpen,
+  Server,
+  Tag,
+  Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { toast } from 'sonner'
 
-type FileStage = 'uploading' | 'extracting' | 'done' | 'error'
+// ---------- Types ----------
+type CheckResult = {
+  ok: boolean
+  name?: string
+  available?: boolean | null
+  status?: 'available' | 'taken' | 'unknown' | 'error'
+  registrar?: string | null
+  registeredAt?: string | null
+  expiresAt?: string | null
+  nameservers?: string[]
+  responseTimeMs?: number
+  httpStatus?: number
+  errorMessage?: string
+  checkedAt?: string
+  error?: string
+}
 
-type Entry = {
+type Provider = {
+  slug: string
+  tld: string
   name: string
-  path: string
-  size: number
-  isDir: boolean
-  ext: string
+  type: 'subdomain' | 'tld' | 'student'
+  free: boolean
+  requirements: string[]
+  url: string
+  signupUrl?: string
+  notes: string
+  alive: boolean
 }
 
-type Item = {
+type Tracked = {
   id: string
-  originalName: string
-  size: number
-  type: string
-  stage: FileStage
-  errorMsg?: string
-  uploadPath?: string
-  entries?: Entry[]
-  totalFiles?: number
-  targetDir?: string
-  isZip: boolean
+  name: string
+  tld: string
+  status: string
+  registrar: string | null
+  registeredAt: string | null
+  expiresAt: string | null
+  lastChecked: string | null
+  notes: string | null
+  createdAt: string
+  checks?: { id: string; status: string; responseTime: number | null; checkedAt: string }[]
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const units = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+const DOMAIN_RE = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/i
+
+function fmtDate(s: string | null | undefined): string {
+  if (!s) return '—'
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return s
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function fmtMs(ms: number | null | undefined): string {
+  if (ms == null) return '—'
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(2)}s`
 }
 
 export default function Home() {
-  const [items, setItems] = useState<Item[]>([])
-  const [dragOver, setDragOver] = useState(false)
-  const [dragCount, setDragCount] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [result, setResult] = useState<CheckResult | null>(null)
 
-  const updateItem = useCallback((id: string, patch: Partial<Item>) => {
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)))
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [loadingProviders, setLoadingProviders] = useState(true)
+
+  const [tracked, setTracked] = useState<Tracked[]>([])
+  const [loadingTracked, setLoadingTracked] = useState(true)
+
+  const [trackingName, setTrackingName] = useState<string | null>(null)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
+
+  // ---------- Load catalogs ----------
+  const loadProviders = useCallback(async () => {
+    setLoadingProviders(true)
+    try {
+      const r = await fetch('/api/providers')
+      const d = await r.json()
+      if (d.ok) setProviders(d.providers)
+    } finally {
+      setLoadingProviders(false)
+    }
   }, [])
 
-  const processFile = useCallback(
-    async (file: File) => {
-      const id = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-      const isZip = file.name.toLowerCase().endsWith('.zip')
-      const item: Item = {
-        id,
-        originalName: file.name,
-        size: file.size,
-        type: file.type || 'application/octet-stream',
-        stage: 'uploading',
-        isZip,
+  const loadTracked = useCallback(async () => {
+    setLoadingTracked(true)
+    try {
+      const r = await fetch('/api/tracked', { cache: 'no-store' })
+      const d = await r.json()
+      if (d.ok) setTracked(d.items)
+    } finally {
+      setLoadingTracked(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadProviders()
+    loadTracked()
+  }, [loadProviders, loadTracked])
+
+  // ---------- Search ----------
+  const onSearch = useCallback(async () => {
+    const name = query.trim().toLowerCase()
+    if (!name) return
+    if (!DOMAIN_RE.test(name)) {
+      toast.error('Formato inválido. Usá algo como "ejemplo.com"')
+      return
+    }
+    setSearching(true)
+    setResult(null)
+    try {
+      const r = await fetch(`/api/domains/check?name=${encodeURIComponent(name)}`, {
+        cache: 'no-store',
+      })
+      const d: CheckResult = await r.json()
+      if (!d.ok) {
+        toast.error(d.error || 'Error al consultar')
+        setResult(d)
+      } else {
+        setResult(d)
+        if (d.status === 'available') toast.success(`✓ ${name} está disponible!`)
+        else if (d.status === 'taken') toast.info(`${name} ya está registrado`)
+        else if (d.status === 'unknown') toast.warning(`${name}: TLD sin RDAP, revisá manualmente`)
+        else toast.error(d.errorMessage || 'Error en la consulta')
       }
-      setItems((prev) => [item, ...prev])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSearching(false)
+    }
+  }, [query])
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') onSearch()
+  }
+
+  // ---------- Track ----------
+  const track = useCallback(
+    async (name: string) => {
+      setTrackingName(name)
       try {
-        // 1) Subir
-        const fd = new FormData()
-        fd.append('file', file)
-        const r = await fetch('/api/upload', { method: 'POST', body: fd })
-        const data = await r.json()
-        if (!data.ok) throw new Error(data.error || 'Error al subir')
-        updateItem(id, { uploadPath: data.path })
-
-        // 2) Si es zip, extraer
-        if (isZip) {
-          updateItem(id, { stage: 'extracting' })
-          const er = await fetch('/api/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: data.name }),
-          })
-          const edata = await er.json()
-          if (!edata.ok) throw new Error(edata.error || 'Error al extraer')
-          updateItem(id, {
-            stage: 'done',
-            entries: edata.entries,
-            totalFiles: edata.totalFiles,
-            targetDir: edata.targetDir,
-          })
+        const r = await fetch('/api/tracked', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        })
+        const d = await r.json()
+        if (d.ok) {
+          toast.success(`Tracking "${name}"`)
+          await loadTracked()
         } else {
-          updateItem(id, { stage: 'done' })
+          if (d.error === 'Already tracked') {
+            toast.info(`"${name}" ya está en tracking`)
+          } else {
+            toast.error(d.error || 'Error al trackear')
+          }
+        }
+      } finally {
+        setTrackingName(null)
+      }
+    },
+    [loadTracked]
+  )
+
+  // ---------- Refresh tracked ----------
+  const refresh = useCallback(
+    async (id: string) => {
+      setRefreshingId(id)
+      try {
+        const r = await fetch(`/api/tracked/check?id=${id}`, { method: 'POST' })
+        const d = await r.json()
+        if (d.ok) {
+          toast.success('Re-chequeado')
+          await loadTracked()
+        } else {
+          toast.error(d.error || 'Error al re-chequear')
+        }
+      } finally {
+        setRefreshingId(null)
+      }
+    },
+    [loadTracked]
+  )
+
+  // ---------- Delete tracked ----------
+  const remove = useCallback(
+    async (id: string, name: string) => {
+      try {
+        const r = await fetch(`/api/tracked?id=${id}`, { method: 'DELETE' })
+        const d = await r.json()
+        if (d.ok) {
+          toast.success(`"${name}" eliminado`)
+          setTracked((prev) => prev.filter((t) => t.id !== id))
+        } else {
+          toast.error(d.error || 'Error al eliminar')
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        updateItem(id, { stage: 'error', errorMsg: msg })
+        toast.error(e instanceof Error ? e.message : String(e))
       }
     },
-    [updateItem]
+    []
   )
 
-  const handleFiles = useCallback(
-    (files: FileList | File[]) => {
-      const arr = Array.from(files)
-      if (arr.length === 0) return
-      // Procesar en paralelo
-      arr.forEach(processFile)
-    },
-    [processFile]
+  const isTracked = useCallback(
+    (name: string) => tracked.some((t) => t.name === name),
+    [tracked]
   )
-
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      setDragOver(false)
-      setDragCount(0)
-      const files = e.dataTransfer.files
-      if (files && files.length) handleFiles(files)
-    },
-    [handleFiles]
-  )
-
-  const onPick = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files
-      if (files && files.length) handleFiles(files)
-      if (inputRef.current) inputRef.current.value = ''
-    },
-    [handleFiles]
-  )
-
-  const removeItem = useCallback((id: string) => {
-    setItems((prev) => prev.filter((it) => it.id !== id))
-  }, [])
-
-  const clearAll = useCallback(() => setItems([]), [])
-
-  const inProgress = items.filter(
-    (it) => it.stage === 'uploading' || it.stage === 'extracting'
-  ).length
 
   return (
     <main className="min-h-screen flex flex-col bg-neutral-50">
-      <div className="flex-1 px-4 py-6 sm:py-8">
-        <div className="w-full max-w-3xl mx-auto">
-          {/* Título */}
-          <div className="mb-6 text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
-              Subir archivos
+      {/* Header */}
+      <header className="border-b border-neutral-200 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
+          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-emerald-600 text-white">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold tracking-tight text-neutral-900 leading-tight">
+              DOMAIN-MASTER
             </h1>
-            <p className="mt-1 text-sm text-neutral-500">
-              Arrastrá varios a la vez o hacé clic para elegirlos. Se suben y procesan solos.
+            <p className="text-[11px] text-neutral-500 leading-tight">
+              Disponibilidad de dominios + dominios gratis (.dev, .app, .eu.org, .js.org, ...)
             </p>
           </div>
+          <Badge variant="secondary" className="hidden sm:inline-flex">
+            <Server className="h-3 w-3 mr-1" /> RDAP
+          </Badge>
+        </div>
+      </header>
 
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragOver(true)
-              setDragCount(e.dataTransfer.items?.length || 0)
-            }}
-            onDragLeave={() => {
-              setDragOver(false)
-              setDragCount(0)
-            }}
-            onDrop={onDrop}
-            onClick={() => inputRef.current?.click()}
-            className={`cursor-pointer rounded-2xl border-2 border-dashed bg-white p-8 sm:p-12 text-center transition ${
-              dragOver
-                ? 'border-emerald-500 bg-emerald-50'
-                : 'border-neutral-300 hover:border-neutral-400'
-            } ${inProgress > 0 ? 'pointer-events-none opacity-70' : ''}`}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={onPick}
-            />
-            <div className="flex flex-col items-center gap-3">
-              <UploadCloud className="h-10 w-10 text-neutral-400" />
-              <div>
-                <p className="text-sm font-medium text-neutral-700">
-                  {dragOver && dragCount > 0
-                    ? `Soltá ${dragCount} archivo${dragCount > 1 ? 's' : ''}`
-                    : 'Soltá los archivos aquí'}
-                </p>
-                <p className="text-xs text-neutral-400">
-                  o hacé clic para elegir (múltiples permitidos)
-                </p>
-              </div>
+      <div className="flex-1 px-4 sm:px-6 py-6 sm:py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Hero search */}
+          <section className="mb-8">
+            <div className="text-center mb-5">
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900">
+                ¿Está libre tu dominio?
+              </h2>
+              <p className="mt-1 text-sm text-neutral-500">
+                Consulta por RDAP (WHOIS moderno, sin auth). 200 = tomado · 404 = libre.
+              </p>
             </div>
-          </div>
+            <div className="flex gap-2 max-w-xl mx-auto">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="ej: miprojecto.dev"
+                className="h-11 text-base"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <Button
+                onClick={onSearch}
+                disabled={searching || !query.trim()}
+                className="h-11 px-5"
+              >
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                <span className="ml-1">Buscar</span>
+              </Button>
+            </div>
+          </section>
 
-          {/* Lista de items */}
-          {items.length > 0 && (
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide">
-                  {items.length} archivo{items.length > 1 ? 's' : ''}
-                  {inProgress > 0 && ` · ${inProgress} procesando`}
-                </p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAll}
-                  className="h-7 text-xs text-neutral-500 hover:text-neutral-700"
-                >
-                  Limpiar lista
-                </Button>
-              </div>
-
-              {items.map((it) => (
-                <div
-                  key={it.id}
-                  className="rounded-xl border border-neutral-200 bg-white overflow-hidden"
-                >
-                  {/* Header del item */}
-                  <div className="flex items-start gap-3 p-4">
-                    <StatusIcon stage={it.stage} isZip={it.isZip} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-neutral-900 text-sm truncate">
-                          {it.originalName}
-                        </span>
-                        {it.isZip && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 uppercase">
-                            zip
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-neutral-500 mt-0.5">
-                        {formatBytes(it.size)} · {it.type}
-                        {it.totalFiles != null && ` · ${it.totalFiles} archivos extraídos`}
-                      </div>
-                      <div className="text-[11px] text-neutral-400 mt-0.5">
-                        {stageLabel(it)}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => removeItem(it.id)}
-                      className="text-neutral-300 hover:text-red-500 p-1 -m-1"
-                      title="Quitar de la lista"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+          {/* Result */}
+          {result && (
+            <section className="mb-8">
+              <Card className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-mono">{result.name}</CardTitle>
+                    {result.responseTimeMs != null && (
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {fmtMs(result.responseTimeMs)} · HTTP {result.httpStatus}
+                      </Badge>
+                    )}
                   </div>
-
-                  {/* Detalle del upload */}
-                  {it.uploadPath && (
-                    <div className="px-4 pb-2">
-                      <div className="text-[11px] text-neutral-400 font-mono break-all bg-neutral-50 rounded px-2 py-1.5">
-                        {it.uploadPath}
-                      </div>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <ResultBadge result={result} />
+                  {result.registrar && (
+                    <ResultRow label="Registrar" value={result.registrar} />
+                  )}
+                  {result.registeredAt && (
+                    <ResultRow label="Registrado" value={fmtDate(result.registeredAt)} />
+                  )}
+                  {result.expiresAt && (
+                    <ResultRow label="Expira" value={fmtDate(result.expiresAt)} />
+                  )}
+                  {result.nameservers && result.nameservers.length > 0 && (
+                    <ResultRow
+                      label="Nameservers"
+                      value={result.nameservers.slice(0, 4).join(', ')}
+                    />
+                  )}
+                  {result.errorMessage && (
+                    <div className="text-xs text-amber-700 bg-amber-50 rounded p-2">
+                      {result.errorMessage}
                     </div>
                   )}
-
-                  {/* Error */}
-                  {it.stage === 'error' && it.errorMsg && (
-                    <div className="px-4 pb-3">
-                      <div className="flex items-start gap-2 text-xs text-red-700 bg-red-50 rounded p-2">
-                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                        <span>{it.errorMsg}</span>
-                      </div>
+                  {result.ok && result.name && (
+                    <div className="pt-2">
+                      {isTracked(result.name) ? (
+                        <Badge variant="secondary" className="text-xs">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Ya en tracking
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={trackingName === result.name}
+                          onClick={() => track(result.name!)}
+                        >
+                          {trackingName === result.name ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : (
+                            <Tag className="h-4 w-4 mr-1" />
+                          )}
+                          Trackear este dominio
+                        </Button>
+                      )}
                     </div>
                   )}
-
-                  {/* Contenido extraído */}
-                  {it.stage === 'done' && it.entries && it.entries.length > 0 && (
-                    <div className="border-t border-neutral-100 bg-neutral-50/50">
-                      <div className="px-4 py-2 text-[11px] text-neutral-500 font-medium uppercase tracking-wide">
-                        Contenido extraído {it.targetDir && `· ${it.targetDir.split('/').pop()}`}
-                      </div>
-                      <div className="max-h-60 overflow-y-auto px-2 pb-2">
-                        <ul className="space-y-0.5">
-                          {it.entries.map((e, i) => (
-                            <li
-                              key={i}
-                              className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white text-[13px]"
-                            >
-                              {e.isDir ? (
-                                <Folder className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-                              ) : (
-                                <FileIcon className="h-3.5 w-3.5 flex-shrink-0 text-neutral-400" />
-                              )}
-                              <span
-                                className={`flex-1 truncate ${
-                                  e.isDir
-                                    ? 'text-neutral-700 font-medium'
-                                    : 'text-neutral-600'
-                                }`}
-                                style={{
-                                  paddingLeft:
-                                    e.name.split('/').length > 1
-                                      ? `${(e.name.split('/').length - 1) * 12}px`
-                                      : 0,
-                                }}
-                              >
-                                {e.name.split('/').pop() || e.name}
-                              </span>
-                              {!e.isDir && (
-                                <span className="text-[10px] text-neutral-400 flex-shrink-0">
-                                  {formatBytes(e.size)}
-                                </span>
-                              )}
-                              {e.ext && !e.isDir && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-500 uppercase flex-shrink-0">
-                                  {e.ext}
-                                </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                </CardContent>
+              </Card>
+            </section>
           )}
+
+          {/* Tabs: Tracked + Providers */}
+          <Tabs defaultValue="tracked" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="tracked">
+                Trackeados
+                {tracked.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center text-[10px] rounded-full bg-neutral-200 text-neutral-600 h-4 min-w-4 px-1">
+                    {tracked.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="providers">Dominios gratis</TabsTrigger>
+            </TabsList>
+
+            {/* Tracked tab */}
+            <TabsContent value="tracked">
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Dominios trackeados</CardTitle>
+                      <CardDescription className="text-xs">
+                        Guardado en SQLite local. Re-chequeá cuando quieras.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadTracked}
+                      disabled={loadingTracked}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingTracked ? 'animate-spin' : ''}`} />
+                      Refrescar
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingTracked ? (
+                    <div className="flex items-center justify-center py-10 text-neutral-400">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : tracked.length === 0 ? (
+                    <EmptyState
+                      title="Sin dominios trackeados"
+                      desc="Buscá uno arriba y hacé clic en 'Trackear'."
+                    />
+                  ) : (
+                    <div className="max-h-[28rem] overflow-y-auto -mx-2">
+                      <ul className="space-y-1">
+                        {tracked.map((t) => (
+                          <li
+                            key={t.id}
+                            className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-neutral-50 border border-transparent hover:border-neutral-200"
+                          >
+                            <StatusPill status={t.status} />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-mono text-sm text-neutral-900 truncate">
+                                {t.name}
+                              </div>
+                              <div className="text-[11px] text-neutral-500 mt-0.5">
+                                {t.registrar ? `${t.registrar} · ` : ''}
+                                {t.lastChecked ? `últ. check ${fmtDate(t.lastChecked)}` : 'sin check aún'}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0"
+                                disabled={refreshingId === t.id}
+                                onClick={() => refresh(t.id)}
+                                title="Re-chequear"
+                              >
+                                <RefreshCw className={`h-3.5 w-3.5 ${refreshingId === t.id ? 'animate-spin' : ''}`} />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-neutral-400 hover:text-red-600"
+                                onClick={() => remove(t.id, t.name)}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Providers tab */}
+            <TabsContent value="providers">
+              {loadingProviders ? (
+                <div className="flex items-center justify-center py-10 text-neutral-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {providers.map((p) => (
+                    <Card key={p.slug} className="overflow-hidden">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <CardTitle className="text-sm font-bold truncate flex items-center gap-1.5">
+                              {p.name}
+                              {p.free ? (
+                                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1.5 py-0 h-4">
+                                  GRATIS
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                                  PAGA
+                                </Badge>
+                              )}
+                            </CardTitle>
+                            <CardDescription className="font-mono text-[11px] text-neutral-500 mt-0.5">
+                              {p.tld}
+                            </CardDescription>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] capitalize flex-shrink-0">
+                            {p.type}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-2 space-y-2">
+                        <p className="text-xs text-neutral-600 leading-snug">{p.notes}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {p.requirements.map((r) => (
+                            <span
+                              key={r}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600"
+                            >
+                              {r}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          {p.signupUrl && (
+                            <a
+                              href={p.signupUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-0.5" /> Registrarse
+                            </a>
+                          )}
+                          <a
+                            href={p.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-xs text-neutral-500 hover:text-neutral-700"
+                          >
+                            <BookOpen className="h-3 w-3 mr-0.5" /> Docs
+                          </a>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
       <footer className="mt-auto border-t border-neutral-200 bg-white py-4 px-4 text-center text-xs text-neutral-400">
-        Subida múltiple · los archivos se guardan en /home/z/my-project/upload/ · los ZIPs se extraen automáticamente
+        DOMAIN-MASTER · Next.js 16 + Prisma + RDAP · {tracked.length} dominios trackeados
       </footer>
     </main>
   )
 }
 
-function StatusIcon({ stage, isZip }: { stage: FileStage; isZip: boolean }) {
-  if (stage === 'uploading' || stage === 'extracting') {
-    return <Loader2 className="h-5 w-5 mt-0.5 flex-shrink-0 animate-spin text-emerald-500" />
-  }
-  if (stage === 'error') {
+// ---------- Sub-components ----------
+function ResultBadge({ result }: { result: CheckResult }) {
+  if (!result.ok) {
     return (
-      <div className="h-5 w-5 mt-0.5 flex-shrink-0 rounded-full bg-red-100 flex items-center justify-center">
-        <AlertCircle className="h-3.5 w-3.5 text-red-600" />
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 text-red-700 text-sm font-medium">
+        <XCircle className="h-4 w-4" /> Error
       </div>
     )
   }
-  return <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-500" />
+  if (result.status === 'available') {
+    return (
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-50 text-emerald-700 text-sm font-medium">
+        <CheckCircle2 className="h-4 w-4" /> Disponible para registrar
+      </div>
+    )
+  }
+  if (result.status === 'taken') {
+    return (
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-neutral-100 text-neutral-700 text-sm font-medium">
+        <XCircle className="h-4 w-4" /> Ya registrado
+      </div>
+    )
+  }
+  if (result.status === 'unknown') {
+    return (
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-50 text-amber-700 text-sm font-medium">
+        <HelpCircle className="h-4 w-4" /> TLD sin RDAP — consulta manual
+      </div>
+    )
+  }
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-red-50 text-red-700 text-sm font-medium">
+      <XCircle className="h-4 w-4" /> {result.errorMessage || 'Error'}
+    </div>
+  )
 }
 
-function stageLabel(it: Item): string {
-  switch (it.stage) {
-    case 'uploading':
-      return 'Subiendo…'
-    case 'extracting':
-      return 'Extrayendo ZIP…'
-    case 'error':
-      return 'Falló'
-    case 'done':
-      return it.isZip ? 'Subido y extraído ✓' : 'Subido ✓'
+function ResultRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-2 text-sm">
+      <span className="text-neutral-400 w-28 flex-shrink-0">{label}</span>
+      <span className="text-neutral-900 font-medium break-all">{value}</span>
+    </div>
+  )
+}
+
+function StatusPill({ status }: { status: string }) {
+  if (status === 'available') {
+    return (
+      <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex-shrink-0">
+        <CheckCircle2 className="h-4 w-4" />
+      </span>
+    )
   }
+  if (status === 'taken') {
+    return (
+      <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-neutral-200 text-neutral-600 flex-shrink-0">
+        <XCircle className="h-4 w-4" />
+      </span>
+    )
+  }
+  if (status === 'unknown') {
+    return (
+      <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-100 text-amber-700 flex-shrink-0">
+        <HelpCircle className="h-4 w-4" />
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-red-100 text-red-700 flex-shrink-0">
+      <XCircle className="h-4 w-4" />
+    </span>
+  )
+}
+
+function EmptyState({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="text-center py-10 px-4">
+      <Globe className="h-8 w-8 mx-auto text-neutral-300 mb-2" />
+      <p className="text-sm font-medium text-neutral-700">{title}</p>
+      <p className="text-xs text-neutral-500 mt-1">{desc}</p>
+    </div>
+  )
 }

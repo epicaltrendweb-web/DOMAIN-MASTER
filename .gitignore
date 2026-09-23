@@ -52,3 +52,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Toolkit uploads (contain secrets — never commit)
+/upload/
+
+# Toolkit cache (decoded tokens)
+/.agent-toolkit/
