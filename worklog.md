@@ -68,3 +68,29 @@ Stage Summary:
 - Flujo verificado: drop/pick múltiples → upload en paralelo → extract por ZIP → inspección de contenido en disco.
 - `/home/z/my-project/upload/` vacío y listo para que el usuario suba sus archivos reales (probablemente `agent-toolkit-bootloader-v1.1.zip` y su `.sha256`).
 - Cuando el usuario suba, inspeccionaré el contenido automáticamente leyendo el árbol de `/home/z/my-project/upload/` y reportaré qué hay dentro.
+
+---
+Task ID: 3
+Agent: Z.ai Code (main, sin delegar)
+Task: Finalizar la página de subida múltiple + verificación final en primer plano granular sin subagentes.
+
+Work Log:
+- Revisé `/home/z/my-project/upload/`: vacío (el usuario aún no subió su toolkit real, pero la infra está lista).
+- Verifiqué `bun run lint`: sin errores.
+- Verifiqué los 3 endpoints con curl: `GET /` 200, `GET /api/upload` 200, `GET /api/extract` 200.
+- Verifiqué con Agent Browser (directamente, sin subagente):
+  - Página carga en `http://localhost:3000/` con heading "Subir archivos" (plural, multi-file mode)
+  - `document.querySelector('input[type=file]').multiple` → `true` (multi-input presente)
+  - Footer presente con texto "Subida múltiple · los archivos se guardan en /home/z/my-project/upload/..."
+  - Drop zone clickeable con hint "(múltiples permitidos)"
+- Limpié artefactos temporales.
+
+Stage Summary:
+- Página `/` TERMINADA y verificada:
+  - Acepta múltiples archivos simultáneos (input multiple + drag multi)
+  - Procesa cada archivo en paralelo (upload + extract)
+  - Lista por archivo con estado individual y contenido extraído colapsable
+  - Footer sticky al fondo
+- APIs `/api/upload` y `/api/extract` operativas.
+- `/home/z/my-project/upload/` listo para recibir los archivos del usuario (probablemente `agent-toolkit-bootloader-v1.1.zip` + `.sha256`).
+- Tarea completada en primer plano sin subagentes.
