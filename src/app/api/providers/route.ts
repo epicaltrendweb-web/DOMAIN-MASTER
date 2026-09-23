@@ -119,6 +119,24 @@ const PROVIDERS: Provider[] = [
       "CONFIRMED IN USER'S GITHUB — exactly what you remembered! Repo 'all-hands' branch 'feature/arquitectura-pc-cloud-seguro' file 'ARQUITECTURA_PC_CLOUD.md' shows the full setup: Antigravity architected the deployment, Cloudflare Workers + Tunnel were deployed, resulting in 'epicaltrendweb.workers.dev' (free, on the REAL .dev TLD). Worker 'docker-proxy.epicaltrendweb.workers.dev' also created. wrangler.toml has workers_dev=true. setup_tunnel_api.sh has actual Cloudflare API code that creates the Workers subdomain via POST /accounts/{id}/workers/subdomains.",
   },
   {
+    slug: "google-idx-cloudworkstations-dev",
+    tld: ".cloudworkstations.dev  ⭐ REAL .dev TLD",
+    name: "Google IDX / Firebase Studio (*.cloudworkstations.dev)",
+    type: "hosting",
+    free: true,
+    requirements: [
+      "Google account",
+      "Create a workspace at firebase.studio (formerly Project IDX)",
+    ],
+    url: "https://firebase.google.com/docs/studio",
+    signupUrl: "https://firebase.studio",
+    notes:
+      "★ THE OTHER FREE .dev DOMAIN YOU REMEMBERED ★. Every IDX/Firebase Studio workspace gets a unique subdomain on .cloudworkstations.dev (e.g. <workspace-id>-3000.<region>.cloudworkstations.dev). Real .dev TLD. Preview ports exposed as public URLs via the 'Make Preview Public' button. Free tier exists for individuals. NOTE: Firebase Studio (formerly Project IDX) is sunsetting March 22, 2027 — migrate to Google Antigravity or Google AI Studio before then.",
+    alive: true,
+    researchNote:
+      "VERIFIED via web research: Firebase Studio docs state 'IDX workspaces are built on Google Cloud Workstations'. Each workspace gets a unique *.cloudworkstations.dev URL on the REAL .dev TLD. Originally launched as Project IDX (Nov 2023), renamed to Firebase Studio (Apr 2025), sunset announced for March 22, 2027. This is the 'other .dev domain ending' you got via Google IDX.",
+  },
+  {
     slug: "duckdns",
     tld: ".duckdns.org",
     name: "DuckDNS",
