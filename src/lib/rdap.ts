@@ -54,7 +54,11 @@ export async function checkDomainRdap(domain: string): Promise<RdapResult> {
 
   try {
     const resp = await fetch(url, {
-      headers: { Accept: "application/rdap+json" },
+      headers: {
+        Accept: "application/rdap+json",
+        // rdap.org is fronted by Cloudflare and blocks requests with no UA.
+        "User-Agent": "DOMAIN-MASTER/1.0 (+https://github.com/epicaltrendweb-web/DOMAIN-MASTER)",
+      },
       redirect: "follow",
       // Next.js fetch with no-store so we don't cache stale availability
       cache: "no-store",
