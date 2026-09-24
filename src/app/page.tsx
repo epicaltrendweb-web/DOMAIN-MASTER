@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Globe, CheckCircle2, XCircle, HelpCircle, Loader2,
   Trash2, RefreshCw, ExternalLink, BookOpen, Sparkles, Tag, Clock,
@@ -292,31 +293,44 @@ export default function Home() {
           </section>
 
           {/* ── Loading state ── */}
-          {searching && (
-            <div className="space-y-4 mb-8">
-              <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-5 text-center shadow-sm">
-                <Loader2 className="h-7 w-7 animate-spin mx-auto text-emerald-600 mb-2" />
-                <p className="text-sm font-semibold text-emerald-900">
-                  Chequeando 26+ TLDs en paralelo…
-                </p>
-                <p className="text-[11px] text-emerald-700 mt-1 max-w-md mx-auto">
-                  2 apex gratis + 8 Student Pack + 9 pagos + 7 subdominios
-                </p>
-                {/* Progress bar */}
-                <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden max-w-md mx-auto">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-700 animate-pulse" style={{ width: '70%' }} />
+          <AnimatePresence>
+            {searching && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4 mb-8"
+              >
+                <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-5 text-center shadow-sm">
+                  <Loader2 className="h-7 w-7 animate-spin mx-auto text-emerald-600 mb-2" />
+                  <p className="text-sm font-semibold text-emerald-900">
+                    Chequeando 26+ TLDs en paralelo…
+                  </p>
+                  <p className="text-[11px] text-emerald-700 mt-1 max-w-md mx-auto">
+                    2 apex gratis + 8 Student Pack + 9 pagos + 7 subdominios
+                  </p>
+                  {/* Progress bar */}
+                  <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden max-w-md mx-auto">
+                    <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-700 animate-pulse" style={{ width: '70%' }} />
+                  </div>
                 </div>
-              </div>
-              <SkeletonCategory accent="emerald" title="★★★ Gratis para SIEMPRE" />
-              <SkeletonCategory accent="amber" title="⚡ Gratis 1er año" />
-              <SkeletonCategory accent="neutral" title="💰 Siempre pago" />
-              <SkeletonCategory accent="emerald" title="🆓 Subdominios gratis" />
-            </div>
-          )}
+                <SkeletonCategory accent="emerald" title="★★★ Gratis para SIEMPRE" />
+                <SkeletonCategory accent="amber" title="⚡ Gratis 1er año" />
+                <SkeletonCategory accent="neutral" title="💰 Siempre pago" />
+                <SkeletonCategory accent="emerald" title="🆓 Subdominios gratis" />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Results ── */}
           {result && !searching && (
-            <div className="space-y-6 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="space-y-6 mb-8"
+            >
               {/* Auto-registered .dev banner */}
               {result.autoRegistered?.url && (
                 <div className="rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-4 shadow-sm">
@@ -412,12 +426,17 @@ export default function Home() {
               <p className="text-center text-xs text-neutral-400 pt-4">
                 Última búsqueda: {new Date(result.checkedAt).toLocaleString()}
               </p>
-            </div>
+            </motion.div>
           )}
 
           {/* ── Empty state ── */}
           {!result && !searching && (
-            <div className="text-center py-12">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-center py-12"
+            >
               <Globe className="h-12 w-12 mx-auto text-emerald-200 mb-3" />
               <p className="text-base font-medium text-neutral-700">
                 Buscá tu dominio arriba
@@ -425,7 +444,7 @@ export default function Home() {
               <p className="text-sm text-neutral-500 mt-1 max-w-md mx-auto">
                 Te muestra 4 categorías: gratis para siempre, 1er año gratis, siempre pago, subdominios gratis. El .dev se auto-registra.
               </p>
-            </div>
+            </motion.div>
           )}
 
           {/* ── Tabs: Mis dominios + Providers catalog ── */}
@@ -659,7 +678,12 @@ function CategorySection({
   if (entries.length === 0) return null
 
   return (
-    <section className={`rounded-xl border-2 ${accentMap.border} ${accentMap.bg} p-4`}>
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: { freeForever: 0, freeFirstYear: 0.1, paid: 0.2, freeSubdomains: 0.3 }[catKey] || 0 }}
+      className={`rounded-xl border-2 ${accentMap.border} ${accentMap.bg} p-4`}
+    >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-start gap-3 flex-1">
           <div className={`${accentMap.icon} mt-0.5`}>{icon}</div>
@@ -696,7 +720,8 @@ function CategorySection({
           ))}
         </div>
       )}
-    </section>
+
+    </motion.section>
   )
 }
 
