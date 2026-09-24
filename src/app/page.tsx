@@ -152,9 +152,12 @@ export default function Home() {
       tld: string
       domain: string
       free: boolean
+      freeApex?: boolean
       freeVia?: string
       typicalPrice?: string
       cheapestRegistrar?: string
+      howToGet?: string
+      renewal?: string
       notes: string
       available: boolean | null
       status: string
@@ -171,9 +174,21 @@ export default function Home() {
     unknownCount: number
     freeAvailableCount: number
     freeAvailable: Array<any>
+    freeApexAvailableCount?: number
+    freeApexAvailable?: Array<any>
+    freeApexOptions?: Array<{
+      tld: string
+      pattern: string
+      howToGet: string
+      renewal: string
+      checkUrl: string
+      registerUrl: string
+      rdapNote: string
+    }>
     note: string
     studentPackUrl: string
-    studentPackNote: string
+    euOrgUrl?: string
+    ppUaUrl?: string
     checkedAt: string
   } | null>(null)
 
@@ -700,11 +715,65 @@ export default function Home() {
                             </span>
                           </div>
 
-                          {/* Free available — most prominent */}
+                          {/* ★★★ FREE APEX OPTIONS — TOP, PROMINENT ★★★ */}
+                          {realTldResult.freeApexOptions && realTldResult.freeApexOptions.length > 0 && (
+                            <div className="rounded-lg border-2 border-emerald-500 bg-gradient-to-br from-emerald-100 via-white to-emerald-100 p-3">
+                              <p className="text-xs font-bold text-emerald-900 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                <span className="text-base">★★★</span>
+                                Dominios APEX gratis para SIEMPRE (primer orden)
+                              </p>
+                              <p className="text-[11px] text-emerald-700 mb-2">
+                                Estas son las 3 únicas terminaciones REALES (no subdominios) que son 100% gratis para siempre. No requieren ser estudiante ni pagar nada.
+                              </p>
+                              <div className="grid gap-2">
+                                {realTldResult.freeApexOptions.map((opt, i) => (
+                                  <div key={i} className="rounded-md bg-white border border-emerald-300 p-2.5">
+                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                      <a
+                                        href={opt.checkUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-mono text-sm font-bold text-emerald-700 hover:text-emerald-900 hover:underline truncate"
+                                      >
+                                        {opt.pattern}
+                                      </a>
+                                      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px]">
+                                        FREE FOREVER
+                                      </Badge>
+                                    </div>
+                                    <div className="text-[11px] text-neutral-700 space-y-0.5">
+                                      <div><span className="font-semibold text-emerald-800">Cómo conseguirlo:</span> {opt.howToGet}</div>
+                                      <div><span className="font-semibold text-emerald-800">Renovación:</span> {opt.renewal}</div>
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                      <a
+                                        href={opt.checkUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center text-[11px] font-medium text-emerald-600 hover:text-emerald-700"
+                                      >
+                                        <ExternalLink className="h-3 w-3 mr-0.5" /> Verificar disponibilidad
+                                      </a>
+                                      <a
+                                        href={opt.registerUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center text-[11px] font-medium text-emerald-600 hover:text-emerald-700"
+                                      >
+                                        <BookOpen className="h-3 w-3 mr-0.5" /> Cómo registrarlo
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Free available — Student Pack (paid after year 1) */}
                           {realTldResult.freeAvailable.length > 0 && (
                             <div>
                               <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-1.5">
-                                ⚡ Disponibles GRATIS vía Name.com + GitHub Student Pack
+                                ⚡ Disponibles GRATIS vía Name.com + GitHub Student Pack (1er año gratis, después ~$15/año)
                               </p>
                               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                                 {realTldResult.freeAvailable.map((r: any, i: number) => (

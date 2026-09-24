@@ -66,9 +66,44 @@ export async function checkDomainRdap(domain: string): Promise<RdapResult> {
 
     const elapsed = Date.now() - start;
 
-    // 200 → registered (taken)
+    // 200 → registered (taken) — BUT some RDAP servers return 200 with an error
+    // in the body (e.g. eu.org returns 200 + errorCode:400 for unknown subdomains).
+    // We need to check the body for valid domain registration data, not just status 200.
     if (resp.ok) {
       const data = await resp.json().catch(() => null);
+
+      // Check for error response disguised as 200 (eu.org, pp.ua quirks)
+      if (data?.errorCode || data?.title === "Bad Request" || data?.title === "Not Implemented") {
+        return {
+          available: null,
+          status: "unknown",
+          registrar: null,
+          registeredAt: null,
+          expiresAt: null,
+          nameservers: [],
+          rawStatus: [],
+          responseTimeMs: elapsed,
+          httpStatus: resp.status,
+          errorMessage: `RDAP returned ${data.errorCode || data.title} in body`,
+        };
+      }
+
+      // Real registered domain has objectClassName: "domain" + ldhName
+      if (!data?.objectClassName || data.objectClassName !== "domain" || !data?.ldhName) {
+        return {
+          available: null,
+          status: "unknown",
+          registrar: null,
+          registeredAt: null,
+          expiresAt: null,
+          nameservers: [],
+          rawStatus: [],
+          responseTimeMs: elapsed,
+          httpStatus: resp.status,
+          errorMessage: "RDAP response has no domain object",
+        };
+      }
+
       const events = data?.events ?? [];
       const registrar = extractRegistrar(data);
       const registeredAt = extractDate(events, "registration");
