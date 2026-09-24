@@ -246,6 +246,11 @@ async function checkAvailability(url: string): Promise<{
       "page not found",
       "404: not found",
       "subdomain not configured",
+      // Cloudflare Workers — 404 + "error code: 1042" for unregistered
+      // *.workers.dev subdomains
+      "error code: 1042",
+      "worker not found",
+      "worker was not found",
     ];
 
     const isAvailable =

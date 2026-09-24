@@ -306,6 +306,14 @@ async function checkSubdomainAvailability(url: string): Promise<{ available: boo
       "no such site","deployment_not_found","the deployment could not be found on vercel",
       "well, you found a glitch","site not found","firebase hosting","page not found",
       "404: not found","subdomain not configured",
+      // Cloudflare Workers — returns 404 + "error code: 1042" for unregistered
+      // *.workers.dev subdomains (the subdomain is enabled at account level,
+      // but no Worker with that name exists yet)
+      "error code: 1042",
+      // Cloudflare Workers — sometimes returns this variant for newly-created
+      // accounts where the subdomain isn't fully provisioned yet
+      "worker not found",
+      "worker was not found",
     ];
     return {
       available: resp.status === 404 && notFoundPatterns.some((p) => body.includes(p)),
