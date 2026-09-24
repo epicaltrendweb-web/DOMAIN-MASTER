@@ -265,11 +265,14 @@ export default function Home() {
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
+                  aria-label="Nombre de dominio a buscar"
+                  aria-describedby="search-help"
                 />
                 <Button
                   onClick={onSearch}
                   disabled={searching || !query.trim()}
                   className="h-14 px-5 sm:px-8 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all flex-shrink-0"
+                  aria-label={searching ? 'Buscando dominios en progreso' : 'Buscar disponibilidad del dominio'}
                 >
                   {searching ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -283,11 +286,12 @@ export default function Home() {
                 <button
                   onClick={randomName}
                   className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-medium"
+                  aria-label="Generar nombre al azar"
                 >
                   🎲 nombre al azar
                 </button>
-                <span className="text-neutral-300">·</span>
-                <span className="text-neutral-500">Enter para buscar</span>
+                <span className="text-neutral-300" aria-hidden>·</span>
+                <span id="search-help" className="text-neutral-500">Enter para buscar</span>
               </div>
             </div>
           </section>
@@ -302,8 +306,8 @@ export default function Home() {
                 transition={{ duration: 0.3 }}
                 className="space-y-4 mb-8"
               >
-                <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-5 text-center shadow-sm">
-                  <Loader2 className="h-7 w-7 animate-spin mx-auto text-emerald-600 mb-2" />
+                <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-5 text-center shadow-sm" role="status" aria-live="polite">
+                  <Loader2 className="h-7 w-7 animate-spin mx-auto text-emerald-600 mb-2" aria-hidden />
                   <p className="text-sm font-semibold text-emerald-900">
                     Chequeando 26+ TLDs en paralelo…
                   </p>
