@@ -254,13 +254,13 @@ export default function Home() {
               <p className="text-sm sm:text-base text-neutral-600 mb-6 max-w-2xl mx-auto">
                 Escribí el nombre que querés. Chequea en paralelo <strong>26+ terminaciones</strong> y te muestra los resultados en <strong>4 categorías claras</strong>.
               </p>
-              <div className="flex gap-2 max-w-xl mx-auto shadow-lg shadow-emerald-600/10 rounded-xl">
+              <div className="flex gap-2 max-w-xl mx-auto shadow-lg shadow-emerald-600/10 rounded-xl flex-col sm:flex-row">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                   onKeyDown={onKeyDown}
                   placeholder="ej: einstein · mi-proyecto · banana"
-                  className="h-14 text-base sm:text-lg border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/30 shadow-none bg-white"
+                  className="h-14 text-base sm:text-lg border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/30 shadow-none bg-white w-full"
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
@@ -268,14 +268,14 @@ export default function Home() {
                 <Button
                   onClick={onSearch}
                   disabled={searching || !query.trim()}
-                  className="h-14 px-6 sm:px-8 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all flex-shrink-0"
+                  className="h-14 px-5 sm:px-8 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all flex-shrink-0"
                 >
                   {searching ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <Search className="h-5 w-5" />
                   )}
-                  <span className="ml-2 hidden sm:inline text-base font-semibold">{searching ? 'Buscando…' : 'Buscar'}</span>
+                  <span className="ml-2 text-sm sm:text-base font-semibold">{searching ? 'Buscando…' : 'Buscar'}</span>
                 </Button>
               </div>
               <div className="mt-3 flex items-center justify-center gap-2 text-xs">
