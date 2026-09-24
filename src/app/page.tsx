@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Search, Globe, CheckCircle2, XCircle, HelpCircle, Loader2,
+  Search, CheckCircle2, XCircle, HelpCircle, Loader2,
   Trash2, RefreshCw, ExternalLink, BookOpen, Sparkles, Tag, Clock,
   Server, Infinity as InfinityIcon, Zap, DollarSign, ArrowRight,
 } from 'lucide-react'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { BrandLogo } from '@/components/brand-logo'
 import { toast } from 'sonner'
 
 // ─────────────────────────────────────────────────────────────────
@@ -217,9 +218,7 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-sm">
-            <Globe className="h-5 w-5" />
-          </div>
+          <BrandLogo size={36} className="flex-shrink-0 rounded-lg shadow-sm" />
           <div className="flex-1 min-w-0">
             <h1 className="text-base sm:text-lg font-bold tracking-tight text-neutral-900 leading-tight">
               DOMAIN-MASTER
@@ -441,7 +440,7 @@ export default function Home() {
               transition={{ delay: 0.2 }}
               className="text-center py-12"
             >
-              <Globe className="h-12 w-12 mx-auto text-emerald-200 mb-3" />
+              <BrandLogo size={64} className="mx-auto mb-3 rounded-xl shadow-md" />
               <p className="text-base font-medium text-neutral-700">
                 Buscá tu dominio arriba
               </p>
