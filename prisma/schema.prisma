@@ -47,3 +47,17 @@ model CheckLog {
   @@index([domainId])
   @@index([checkedAt])
 }
+
+/// Per-Worker content configuration.
+/// Lets the user edit what their deployed Worker returns at the URL.
+model WorkerConfig {
+  id           String   @id @default(cuid())
+  workerName   String   @unique  // e.g. "dolarimetro"
+  contentType  String   @default("placeholder")  // "placeholder" | "html" | "redirect" | "proxy" | "json" | "text"
+  contentBody  String?  // HTML body / redirect URL / proxy target URL / JSON body / text body
+  lastDeployedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([workerName])
+}
