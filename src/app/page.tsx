@@ -617,8 +617,18 @@ export default function Home() {
         </div>
       </div>
 
-      <footer className="mt-auto border-t border-neutral-200 bg-white py-4 px-4 text-center text-xs text-neutral-400">
-        DOMAIN-MASTER · 26+ TLDs chequeados vía RDAP · {tracked.length} dominios guardados
+      <footer className="mt-auto border-t border-neutral-200 bg-gradient-to-r from-neutral-50 via-white to-emerald-50/40 py-4 px-4 text-center text-xs text-neutral-500">
+        <div className="max-w-5xl mx-auto flex items-center justify-center gap-2 flex-wrap">
+          <span className="font-medium text-neutral-700">DOMAIN-MASTER</span>
+          <span aria-hidden className="text-neutral-300">·</span>
+          <span>26+ TLDs vía RDAP</span>
+          <span aria-hidden className="text-neutral-300">·</span>
+          <span>{tracked.length} dominios guardados</span>
+          <span aria-hidden className="text-neutral-300">·</span>
+          <a href="https://github.com/epicaltrendweb-web/DOMAIN-MASTER" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-700">
+            v1.0
+          </a>
+        </div>
       </footer>
     </main>
   )
