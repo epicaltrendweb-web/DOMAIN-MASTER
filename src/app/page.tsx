@@ -241,46 +241,53 @@ export default function Home() {
       <div className="flex-1 px-4 sm:px-6 py-6 sm:py-8">
         <div className="max-w-5xl mx-auto">
           {/* ── Hero search ── */}
-          <section className="mb-8 text-center">
-            <h2 className="text-2xl sm:text-4xl font-bold tracking-tight text-neutral-900 mb-2">
-              Encontrá tu dominio <span className="text-emerald-600">gratis</span>
-            </h2>
-            <p className="text-sm sm:text-base text-neutral-600 mb-6 max-w-2xl mx-auto">
-              Escribí el nombre que querés. Chequea en paralelo <strong>26+ terminaciones</strong> y te muestra los resultados en <strong>4 categorías claras</strong>.
-            </p>
-            <div className="flex gap-2 max-w-xl mx-auto">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                onKeyDown={onKeyDown}
-                placeholder="ej: einstein · mi-proyecto · banana"
-                className="h-12 text-base sm:text-lg border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/30 shadow-sm"
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              <Button
-                onClick={onSearch}
-                disabled={searching || !query.trim()}
-                className="h-12 px-6 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-md transition-all"
-              >
-                {searching ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Search className="h-5 w-5" />
-                )}
-                <span className="ml-2 hidden sm:inline">{searching ? 'Buscando…' : 'Buscar'}</span>
-              </Button>
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-xs">
-              <button
-                onClick={randomName}
-                className="text-emerald-700 hover:text-emerald-900 underline-offset-2 hover:underline"
-              >
-                🎲 nombre al azar
-              </button>
-              <span className="text-neutral-400">·</span>
-              <span className="text-neutral-500">Enter para buscar</span>
+          <section className="mb-10 text-center relative">
+            {/* Decorative gradient orbs */}
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 h-40 w-80 rounded-full bg-emerald-300/20 blur-3xl pointer-events-none" aria-hidden />
+            <div className="relative">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold mb-3">
+                <Sparkles className="h-3 w-3" /> 26+ TLDs · 4 categorías · .dev auto-registrable
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-neutral-900 mb-3">
+                Encontrá tu dominio <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">gratis</span>
+              </h2>
+              <p className="text-sm sm:text-base text-neutral-600 mb-6 max-w-2xl mx-auto">
+                Escribí el nombre que querés. Chequea en paralelo <strong>26+ terminaciones</strong> y te muestra los resultados en <strong>4 categorías claras</strong>.
+              </p>
+              <div className="flex gap-2 max-w-xl mx-auto shadow-lg shadow-emerald-600/10 rounded-xl">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  onKeyDown={onKeyDown}
+                  placeholder="ej: einstein · mi-proyecto · banana"
+                  className="h-14 text-base sm:text-lg border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/30 shadow-none bg-white"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <Button
+                  onClick={onSearch}
+                  disabled={searching || !query.trim()}
+                  className="h-14 px-6 sm:px-8 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white shadow-md hover:shadow-lg transition-all flex-shrink-0"
+                >
+                  {searching ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Search className="h-5 w-5" />
+                  )}
+                  <span className="ml-2 hidden sm:inline text-base font-semibold">{searching ? 'Buscando…' : 'Buscar'}</span>
+                </Button>
+              </div>
+              <div className="mt-3 flex items-center justify-center gap-2 text-xs">
+                <button
+                  onClick={randomName}
+                  className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-900 font-medium"
+                >
+                  🎲 nombre al azar
+                </button>
+                <span className="text-neutral-300">·</span>
+                <span className="text-neutral-500">Enter para buscar</span>
+              </div>
             </div>
           </section>
 
