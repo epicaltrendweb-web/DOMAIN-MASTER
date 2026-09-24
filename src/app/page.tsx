@@ -94,6 +94,10 @@ export default function Home() {
   const [loadingTracked, setLoadingTracked] = useState(true)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
+  // Deploy state for the manual "Conseguir .dev" button
+  const [deployingName, setDeployingName] = useState<string | null>(null)
+  const [deployedWorkers, setDeployedWorkers] = useState<Record<string, string>>({})
+
   // ─── Load tracked domains (for "Mis dominios" tab) ───
   const loadTracked = useCallback(async () => {
     setLoadingTracked(true)
@@ -108,7 +112,8 @@ export default function Home() {
 
   useEffect(() => { loadTracked() }, [loadTracked])
 
-  // ─── Unified search ───
+  // ─── Unified search (no auto-deploy — that crashed the dev server on
+  // memory pressure. Deploy is now a separate click after search.) ───
   const onSearch = useCallback(async () => {
     const name = query.trim().toLowerCase()
     if (!name) {
@@ -122,16 +127,19 @@ export default function Home() {
     setSearching(true)
     setResult(null)
     try {
-      const r = await fetch(`/api/search-all?name=${encodeURIComponent(name)}&register=1`, { cache: 'no-store' })
+      // NOTE: do NOT pass register=1 here — the auto-deploy (internal fetch
+      // to /api/workers/deploy) crashes the dev server due to memory
+      // pressure when bundled with the 26+ RDAP/HTTP checks in parallel.
+      // Deploy is now a separate action the user triggers from the result
+      // card via deployDev(name).
+      const r = await fetch(`/api/search-all?name=${encodeURIComponent(name)}`, { cache: 'no-store' })
       const d: SearchAllResult = await r.json()
       if (!d.ok) {
         toast.error(d.error || 'Error al buscar')
         return
       }
       setResult(d)
-      if (d.autoRegistered?.url) {
-        toast.success(`.dev auto-registrado: ${d.autoRegistered.url}`)
-      } else if (d.totalAvailable > 0) {
+      if (d.totalAvailable > 0) {
         toast.success(`${d.totalAvailable} dominios disponibles con "${d.name}"`)
       } else {
         toast.info(`"${d.name}" tomado en todos lados`)
@@ -146,6 +154,29 @@ export default function Home() {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') onSearch()
   }
+
+  // ─── Manual deploy (after search, user clicks "Conseguir .dev") ───
+  const deployDev = useCallback(async (workerName: string, displayDomain: string) => {
+    setDeployingName(displayDomain)
+    try {
+      const r = await fetch('/api/workers/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: workerName }),
+      })
+      const d = await r.json()
+      if (d.ok) {
+        setDeployedWorkers((prev) => ({ ...prev, [displayDomain]: d.fullUrl }))
+        toast.success(`.dev deployado: ${d.fullUrl}`)
+      } else {
+        toast.error(d.error || 'Error al deployar')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDeployingName(null)
+    }
+  }, [])
 
   // ─── Tracked actions ───
   const track = useCallback(async (name: string) => {
@@ -753,6 +784,12 @@ function CategorySection({
               track={track}
               isTracked={isTracked(r.domain)}
               onTrack={() => track(r.domain)}
+              onDeploy={catKey === 'freeSubdomains' && r.autoRegistrable ? () => {
+                // Extract worker name from domain (e.g. "banana.epicaltrendweb.workers.dev" → "banana")
+                const workerName = r.domain.split('.epicaltrendweb.workers.dev')[0] || r.domain.split('.')[0]
+                deployDev(workerName, r.domain)
+              } : undefined}
+              isDeploying={deployingName === r.domain}
             />
           ))}
         </div>
@@ -763,12 +800,14 @@ function CategorySection({
 }
 
 function EntryCard({
-  entry, accent, isTracked, onTrack,
+  entry, accent, isTracked, onTrack, onDeploy, isDeploying,
 }: {
   entry: ResultEntry
   accent: 'emerald' | 'amber' | 'neutral'
   isTracked: boolean
   onTrack: () => void
+  onDeploy?: () => void
+  isDeploying?: boolean
 }) {
   const available = entry.available === true
   const taken = entry.available === false
@@ -779,6 +818,11 @@ function EntryCard({
     amber: 'bg-white border-amber-200 hover:border-amber-400',
     neutral: 'bg-white border-neutral-200 hover:border-neutral-400',
   }[accent]
+
+  // For .workers.dev entries, the claimUrl is the CF dashboard. When
+  // available + autoRegistrable, show "Conseguir este .dev" button instead
+  // of just the ExternalLink (which doesn't actually deploy).
+  const isAutoDeployable = !!entry.autoRegistrable && available && !!onDeploy
 
   return (
     <div className={`rounded-md border ${accentMap} p-2.5 transition-all`}>
@@ -791,7 +835,7 @@ function EntryCard({
           <HelpCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
         )}
         <a
-          href={entry.claimUrl}
+          href={taken ? `https://${entry.domain}` : entry.claimUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={`font-mono text-sm flex-1 truncate ${
@@ -800,7 +844,7 @@ function EntryCard({
         >
           {entry.domain}
         </a>
-        {available && (
+        {available && !isAutoDeployable && (
           <a
             href={entry.claimUrl}
             target="_blank"
@@ -828,7 +872,21 @@ function EntryCard({
             {available ? `${fmtMs(entry.responseTimeMs)}` : unknown ? 'sin datos RDAP' : 'tomado'}
           </span>
         )}
-        {available && (
+        {isAutoDeployable ? (
+          <Button
+            size="sm"
+            onClick={onDeploy}
+            disabled={isDeploying}
+            className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {isDeploying ? (
+              <Loader2 className="h-3 w-3 animate-spin mr-0.5" />
+            ) : (
+              <Sparkles className="h-3 w-3 mr-0.5" />
+            )}
+            {isDeploying ? 'Deployando…' : 'Conseguir .dev'}
+          </Button>
+        ) : available ? (
           <Button
             size="sm"
             variant={isTracked ? 'secondary' : 'outline'}
@@ -838,7 +896,7 @@ function EntryCard({
           >
             {isTracked ? 'Guardado ✓' : 'Guardar'}
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   )
