@@ -441,10 +441,34 @@ export default function Home() {
               <p className="text-base font-medium text-neutral-700">
                 Buscá tu dominio arriba
               </p>
-              <p className="text-sm text-neutral-500 mt-1 max-w-md mx-auto">
+              <p className="text-sm text-neutral-500 mt-1 max-w-md mx-auto mb-4">
                 Te muestra 4 categorías: gratis para siempre, 1er año gratis, siempre pago, subdominios gratis. El .dev se auto-registra.
               </p>
+              <div className="flex flex-wrap justify-center gap-1.5">
+                <span className="text-xs text-neutral-500 self-center mr-1">Probá:</span>
+                {['banana', 'einstein', 'mi-proyecto', 'sky-lab', 'atom-99'].map((ex) => (
+                  <button
+                    key={ex}
+                    onClick={() => { setQuery(ex); setTimeout(onSearch, 100) }}
+                    className="px-2.5 py-1 rounded-md bg-white border border-emerald-200 text-xs font-mono text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 transition"
+                  >
+                    {ex}
+                  </button>
+                ))}
+              </div>
             </motion.div>
+          )}
+
+          {/* ── No results state ── */}
+          {result && !searching && result.totalAvailable === 0 && (
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4 text-center mb-6">
+              <p className="text-sm font-medium text-amber-900">
+                "{result.name}" está tomado en todos los TLDs
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Probá con otro nombre o variante (agregá números, guiones, etc.)
+              </p>
+            </div>
           )}
 
           {/* ── Tabs: Mis dominios + Providers catalog ── */}
