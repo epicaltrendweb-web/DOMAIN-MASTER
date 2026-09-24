@@ -293,17 +293,24 @@ export default function Home() {
 
           {/* ── Loading state ── */}
           {searching && (
-            <div className="space-y-3 mb-8">
-              <div className="rounded-lg border-2 border-emerald-200 bg-emerald-50/50 p-4 text-center">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-600 mb-2" />
-                <p className="text-sm font-medium text-emerald-900">
+            <div className="space-y-4 mb-8">
+              <div className="rounded-xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50 p-5 text-center shadow-sm">
+                <Loader2 className="h-7 w-7 animate-spin mx-auto text-emerald-600 mb-2" />
+                <p className="text-sm font-semibold text-emerald-900">
                   Chequeando 26+ TLDs en paralelo…
                 </p>
-                <p className="text-[11px] text-emerald-700 mt-0.5">
-                  Esto toma ~7-10s por rate limits de RDAP
+                <p className="text-[11px] text-emerald-700 mt-1 max-w-md mx-auto">
+                  2 apex gratis + 8 Student Pack + 9 pagos + 7 subdominios
                 </p>
+                {/* Progress bar */}
+                <div className="mt-3 h-1.5 rounded-full bg-emerald-100 overflow-hidden max-w-md mx-auto">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-700 animate-pulse" style={{ width: '70%' }} />
+                </div>
               </div>
-              <SkeletonGrid />
+              <SkeletonCategory accent="emerald" title="★★★ Gratis para SIEMPRE" />
+              <SkeletonCategory accent="amber" title="⚡ Gratis 1er año" />
+              <SkeletonCategory accent="neutral" title="💰 Siempre pago" />
+              <SkeletonCategory accent="emerald" title="🆓 Subdominios gratis" />
             </div>
           )}
 
@@ -580,6 +587,27 @@ function SkeletonGrid() {
       {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="h-12 rounded-md bg-neutral-100 animate-pulse" />
       ))}
+    </div>
+  )
+}
+
+function SkeletonCategory({ accent, title }: { accent: 'emerald' | 'amber' | 'neutral'; title: string }) {
+  const accentMap = {
+    emerald: 'border-emerald-200 bg-emerald-50/30',
+    amber: 'border-amber-200 bg-amber-50/30',
+    neutral: 'border-neutral-200 bg-neutral-50/30',
+  }[accent]
+  return (
+    <div className={`rounded-xl border-2 ${accentMap} p-4`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="h-4 w-44 rounded bg-neutral-200 animate-pulse" />
+        <div className="h-5 w-12 rounded-full bg-neutral-200 animate-pulse" />
+      </div>
+      <div className="grid sm:grid-cols-2 gap-1.5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-12 rounded-md bg-white border border-neutral-200 animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+        ))}
+      </div>
     </div>
   )
 }
