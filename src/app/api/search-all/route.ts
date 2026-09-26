@@ -252,6 +252,50 @@ const SUBDOMAIN_TLDS = [
     claimUrl: () => "https://render.com/signup",
     checkUrl: (n: string) => `https://${n}.onrender.com`,
   },
+  // NEW: GitHub Pages — free forever, tied to GitHub username
+  {
+    tld: "github.io",
+    pattern: (n: string) => `${n}.github.io`,
+    free: true, autoRegistrable: false,
+    howToGet: "Create a GitHub repo named '<username>.github.io' → push HTML → enable Pages in Settings. Site goes live at https://<username>.github.io.",
+    renewal: "FREE FOREVER — active as long as your GitHub account is in good standing.",
+    notes: "★ REAL .io TLD. Name = your GitHub username (can't be arbitrary). Tu username es 'epicaltrendweb-web' → epicaltrendweb-web.github.io.",
+    claimUrl: () => "https://github.com/new",
+    checkUrl: (n: string) => `https://${n}.github.io`,
+  },
+  // NEW: trycloudflare.com — Cloudflare Quick Tunnel (random, ephemeral)
+  {
+    tld: "trycloudflare.com",
+    pattern: () => `<random>.trycloudflare.com`,
+    free: true, autoRegistrable: false,
+    howToGet: "Run 'cloudflared tunnel --url http://localhost:3000' → get a random subdomain. No account needed, instant, with HTTPS.",
+    renewal: "FREE but EPHEMERAL — changes every time you restart the tunnel. Not permanent.",
+    notes: "Cloudflare Quick Tunnel. Random name (can't choose). Good for testing, not for production.",
+    claimUrl: () => "https://github.com/cloudflare/cloudflared",
+    checkUrl: () => `https://trycloudflare.com`,
+  },
+  // NEW: firebaseapp.com — Firebase Hosting secondary subdomain
+  {
+    tld: "firebaseapp.com",
+    pattern: (n: string) => `${n}.firebaseapp.com`,
+    free: true, autoRegistrable: false,
+    howToGet: "Same as web.app — create Firebase project → enable Hosting → both subdomains auto-assigned.",
+    renewal: "FREE FOREVER — Firebase Hosting free tier (Spark plan).",
+    notes: "REAL .app TLD (firebaseapp.com). Same project as web.app — you get BOTH for free.",
+    claimUrl: () => "https://console.firebase.google.com",
+    checkUrl: (n: string) => `https://${n}.firebaseapp.com`,
+  },
+  // NEW: val.town — serverless functions with free subdomain
+  {
+    tld: "val.town",
+    pattern: (n: string) => `${n}.val.town`,
+    free: true, autoRegistrable: false,
+    howToGet: "Create account at val.town → create a val (serverless function) → get a URL.",
+    renewal: "FREE FOREVER — val.town free tier.",
+    notes: "Free serverless functions with subdomain. Good for APIs.",
+    claimUrl: () => "https://val.town",
+    checkUrl: (n: string) => `https://${n}.val.town`,
+  },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────

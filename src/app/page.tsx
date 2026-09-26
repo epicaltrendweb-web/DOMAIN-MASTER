@@ -643,6 +643,10 @@ export default function Home() {
                 />
               </div>
             </TabsContent>
+
+            <TabsContent value="tricks">
+              <TricksAndNotes />
+            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -961,6 +965,145 @@ function InfoCard({
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// ─── Tricks & Notes — knowledge for any AI/agent ─────────────────
+function TricksAndNotes() {
+  const tricks = [
+    {
+      category: "Crypto APIs desde Cloudflare Workers",
+      icon: "B",
+      items: [
+        "Kraken API (api.kraken.com/0/public/OHLC) — FREE, no auth, WORKS from CF Workers. Best for BTC historico.",
+        "CoinPaprika (api.coinpaprika.com/v1/tickers/btc-bitcoin/historical) — FREE, no auth, funciona desde CF.",
+        "Bitstamp (www.bitstamp.net/api/v2/ohlc/btcusd/) — FREE, no auth, funciona desde CF.",
+        "CoinGecko — 429/403 desde CF Workers (rate limited). Add User-Agent header helps but not guaranteed.",
+        "Binance — 403 desde CF Workers (IP block). DO NOT use from Workers.",
+        "CoinCap — timeout from CF. DO NOT use.",
+        "CoinDesk — timeout. DO NOT use.",
+        "CryptoCompare — 401 (needs API key).",
+        "STRATEGY: try Kraken -> CoinPaprika -> Bitstamp -> CoinGecko (in that order).",
+      ]
+    },
+    {
+      category: "UTF-8 / Encoding en Workers",
+      icon: "E",
+      items: [
+        "atob() returns Latin1, NOT UTF-8. Accented chars break (a -> A-).",
+        "Use: new TextDecoder('utf-8').decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0)))",
+        "To inline HTML in Worker.js: base64 + TextDecoder = zero escaping issues.",
+        "NEVER inline HTML as template literal (backticks) if it has <script> with embedded JS.",
+        "Self-healing: after deploy, fetch the URL + count mojibake. If >0, switch encoding strategy.",
+        "Try 3 strategies: TextDecoder -> decodeURIComponent -> raw atob. Pick the winner.",
+      ]
+    },
+    {
+      category: "Response format — frontend vs API mismatch",
+      icon: "!",
+      items: [
+        "BUG: Worker returned {ok:true, data:{prices:[...]}} but frontend expected {ok:true, prices:[...]} (prices at TOP LEVEL).",
+        "SYMPTOM: API works via curl but page shows error. Frontend does raw.prices -> undefined -> 'respuesta vacia'.",
+        "RULE: ALWAYS check that Worker response format matches what the frontend JS expects.",
+        "FIX: flatten response. Use {ok:true, prices:[...]} not {ok:true, data:{prices:[...]}}.",
+        "LESSON: when API works via curl but page shows error, the problem is almost always FORMAT, not encoding.",
+      ]
+    },
+    {
+      category: "Cloudflare Workers — deployment",
+      icon: "W",
+      items: [
+        "Deploy: PUT /accounts/{id}/workers/scripts/{name} (multipart: metadata + worker.js).",
+        "Enable subdomain: POST .../subdomain {enabled:true}. WITHOUT this, URL returns error 1042.",
+        "Worker code must be ES Modules: 'export default { async fetch }' — NOT addEventListener.",
+        "workers.dev is the REAL .dev TLD (Google Registry). Cloudflare pays, you get it free.",
+        "Free tier: 100k requests/day. Enough for personal site.",
+        "Cache: { cf: { cacheTtl: 3600 } } caches 1 hour at CF edge.",
+        "Account subdomain (e.g. 'epicaltrendweb') is HARD to change — choose wisely or create new account.",
+        "To get SHORT subdomain: create new CF account with short email, OR use Deno Deploy (no account prefix).",
+      ]
+    },
+    {
+      category: "Sandbox Z.ai — keep-alive",
+      icon: "K",
+      items: [
+        "Dev server dies by OOM. Fix: 3-layer keep-alive (dev.sh + supervisor.sh).",
+        "setsid -f (double fork) -> PPID 1 -> survives between agent commands.",
+        "NODE_OPTIONS='--max-old-space-size=3072' -> 3GB heap (default 1.5GB too small).",
+        "Concurrency=1 in search-all (sequential) -> 80% less memory than parallel.",
+        "Remove Framer Motion from results -> reduces render memory significantly.",
+        ".env does NOT survive sandbox restarts — must be recreated by dev.sh.",
+        "upload/ survives restarts — keep important files there.",
+      ]
+    },
+    {
+      category: "ALL free domain options — complete list",
+      icon: "D",
+      items: [
+        "FREE FOREVER APEX: .eu.org (manual approval, nunca expira) + <user>.github.io (auto con GitHub).",
+        "FREE FOREVER APEX: .pp.ua (verificar telefono + CC, anti-abuse).",
+        "FREE .dev SUBDOMAIN: <name>.workers.dev (CF, auto-deployable) + <name>.deno.dev (Deno Deploy, sin account prefix!).",
+        "FREE .app SUBDOMAIN: <name>.netlify.app + <name>.vercel.app + <name>.web.app + <name>.firebaseapp.com.",
+        "FREE OTHER: <name>.surge.sh + <name>.onrender.com + <name>.trycloudflare.com (efimero) + <name>.val.town.",
+        "FREE 1st YEAR (Student Pack): .app .dev .live .studio .software .games .tattoo .dentist — education.github.com/pack.",
+        "PAID CHEAP: .xyz $1 promo + .com ~$7 + .page/.dev/.app ~$8-15 + .io ~$35 + .ai ~$100.",
+        "DEAD: .tk .ml .ga .cf .gq (Freenom 2023) + .glitch.me (Glitch closed).",
+        "Atom.com APPLAUNCH = $5.90/ano .app (not free but cheap).",
+        "TO GET SHORT .dev FREE: Deno Deploy is best (project name = subdomain, no account prefix).",
+        "TO CHANGE CF SUBDOMAIN: very hard, almost stuck. Better create new CF account with short name.",
+      ]
+    },
+    {
+      category: "HTML obfuscation anti-copy",
+      icon: "O",
+      items: [
+        "Minify: remove comments, whitespace, newlines.",
+        "Base64: encode HTML -> document.write(atob('...')) -> View Source shows only base64.",
+        "Anti-copy JS: disable contextmenu + block F12/Ctrl+U + disable text selection.",
+        "TextDecoder for correct UTF-8 in base64 decode (atob only does Latin1).",
+        "Worker source code is NEVER visible to visitors (Cloudflare protects it).",
+      ]
+    },
+    {
+      category: "Debugging — pattern when something fails",
+      icon: "?",
+      items: [
+        "STEP 1: curl the API -> if 200 + data, API works.",
+        "STEP 2: curl the HTML page -> find the error message in the HTML.",
+        "STEP 3: read the frontend JS -> how does it parse the response? raw.prices? raw.data.prices?",
+        "STEP 4: compare API format vs expected format -> if mismatch, flatten.",
+        "STEP 5: test in browser (Agent Browser) -> verify error is gone.",
+        "GOLDEN RULE: test 5+ times before saying 'it works'. 1 curl + 1 browser is NOT enough.",
+        "WHEN SOMETHING FAILS: the learning goes to THIS Trucos tab. ALWAYS.",
+      ]
+    },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 p-4">
+        <h3 className="text-sm font-bold text-emerald-900 mb-1">Trucos y Notas tecnicas</h3>
+        <p className="text-[11px] text-emerald-700">
+          Conocimiento acumulado de todo el desarrollo de DOMAIN-MASTER. Cualquier IA/agente que lea esto tiene el contexto necesario para no repetir errores.
+        </p>
+      </div>
+      {tricks.map((section, i) => (
+        <div key={i} className="rounded-lg border border-neutral-200 bg-white p-4">
+          <h4 className="text-sm font-bold text-neutral-900 mb-2 flex items-center gap-2">
+            <span className="text-base">{section.icon}</span>
+            {section.category}
+          </h4>
+          <ul className="space-y-1">
+            {section.items.map((item, j) => (
+              <li key={j} className="text-[11px] text-neutral-600 leading-snug flex items-start gap-1.5">
+                <span className="text-emerald-500 mt-0.5">{'\u2192'}</span>
+                <span className="font-mono">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }
