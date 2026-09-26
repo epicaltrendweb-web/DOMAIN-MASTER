@@ -152,3 +152,27 @@ echo "Next.js dev server is running in background (PID: $DEV_PID)."
 echo "Use 'kill $DEV_PID' to stop it."
 disown "$DEV_PID" 2>/dev/null || true
 unset DEV_PID
+
+# ─── Auto-backfill tracked domains from CF on boot ───
+# If TrackedDomain table is empty, fetch Workers from CF and add them
+if command -v curl &> /dev/null; then
+  TRACKED_COUNT=$(curl -s --max-time 5 http://localhost:3000/api/tracked 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('items',[])))" 2>/dev/null || echo "0")
+  if [ "$TRACKED_COUNT" = "0" ]; then
+    # Fetch workers from CF API and backfill
+    source /home/z/my-project/.env 2>/dev/null
+    if [ -n "$CF_API_KEY" ]; then
+      WORKERS=$(curl -s --max-time 10 "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts" \
+        -H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_API_KEY" 2>/dev/null)
+      echo "$WORKERS" | python3 -c "
+import sys, json, subprocess
+d = json.load(sys.stdin)
+for w in d.get('result', []):
+    name = w['id'] + '.epicaltrendweb.workers.dev'
+    subprocess.run(['curl', '-s', '-X', 'POST', '-H', 'Content-Type: application/json',
+        '-d', json.dumps({'name': name, 'notes': 'auto-backfilled from CF'}),
+        'http://localhost:3000/api/tracked'], timeout=5)
+    print(f'Backfilled: {name}')
+" 2>/dev/null
+    fi
+  fi
+fi
